@@ -89,7 +89,7 @@ if [ ! -f .gclient ]; then
   cp engine/scripts/standard.gclient .gclient
 fi
 for i in 1 2 3; do
-  if gclient sync --no-history; then break; fi
+  if gclient sync; then break; fi
   echo "gclient sync attempt $i failed, retrying..."
   sleep 15
 done
