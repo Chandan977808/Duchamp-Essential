@@ -2,11 +2,16 @@ name: duchamp-release
 
 on:
   workflow_dispatch:
+  push:
+    tags:
+      - "v*"
 
 jobs:
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 360
+    permissions:
+      contents: write
     env:
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
       DEPOT_TOOLS: ${{ github.workspace }}/depot_tools
@@ -132,6 +137,18 @@ jobs:
         run: |
           ./tools/export-aosp-bundle.sh "$RUNNER_TEMP/aosp-bundle"
           tar -czf "$RUNNER_TEMP/DuchampEssential-AOSP-bundle.tar.gz" -C "$RUNNER_TEMP/aosp-bundle" .
+
+      - name: Publish GitHub Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" \
+            --title "Duchamp Essential $TAG" \
+            --notes "Duchamp Essential $TAG for duchamp (POCO X6 Pro / Redmi K70E). SaanOS port of Rodin Essential."
+          gh release upload "$TAG" out/kernelsu-next/*/*.zip \
+            "$RUNNER_TEMP/DuchampEssential-AOSP-bundle.tar.gz" --clobber
 
       - name: Upload module ZIP
         uses: actions/upload-artifact@v4
