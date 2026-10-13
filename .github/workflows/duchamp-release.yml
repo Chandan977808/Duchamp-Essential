@@ -1,0 +1,146 @@
+name: duchamp-release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+      DEPOT_TOOLS: ${{ github.workspace }}/depot_tools
+
+    steps:
+      - name: Checkout (duchamp branch)
+        uses: actions/checkout@v4
+
+      - name: Free disk space for the engine checkout
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL \
+            /usr/local/lib/node_modules /opt/az || true
+          df -h /
+
+      - name: Install host tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build pkg-config curl unzip zip \
+            python3 openjdk-17-jdk
+          java -version 2>&1 | head -1
+
+      - name: Set up Flutter (stable)
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Set up Rust with the Android target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Set up depot_tools (gclient)
+        run: |
+          git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git "$DEPOT_TOOLS"
+          echo "$DEPOT_TOOLS" >> "$GITHUB_PATH"
+
+      - name: Resolve Flutter root and engine revision
+        id: flutter
+        run: |
+          FLUTTER_BIN="$(readlink -f "$(command -v flutter)")"
+          FLUTTER_ROOT="$(cd "$(dirname "$FLUTTER_BIN")/.." && pwd)"
+          echo "root=$FLUTTER_ROOT" >> "$GITHUB_OUTPUT"
+          echo "engine_rev=$(tr -d '[:space:]' <"$FLUTTER_ROOT/bin/internal/engine.version")" >> "$GITHUB_OUTPUT"
+          flutter --version
+
+      - name: Restore engine checkout cache
+        id: engine-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.flutter.outputs.root }}/engine/src
+          key: engine-src-${{ steps.flutter.outputs.engine_rev }}
+
+      - name: Sync Flutter engine sources
+        if: steps.engine-cache.outputs.cache-hit != 'true'
+        working-directory: ${{ steps.flutter.outputs.root }}
+        run: |
+          cp engine/scripts/standard.gclient .gclient
+          for i in 1 2 3; do
+            gclient sync --no-history && break
+            echo "gclient sync attempt $i failed, retrying..."
+            sleep 15
+          done
+          git -C engine/src rev-parse HEAD
+
+      - name: Refresh engine sources on cache hit
+        if: steps.engine-cache.outputs.cache-hit == 'true'
+        working-directory: ${{ steps.flutter.outputs.root }}
+        run: gclient sync --no-history
+
+      - name: Build pinned Flutter engine
+        run: ./tools/build-flutter-engine.sh
+
+      - name: Top up Android SDK (platform 36, build-tools, NDK r27+)
+        run: |
+          SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
+          "$SDKMANAGER" "platforms;android-36"
+          BUILD_TOOLS="$("$SDKMANAGER" --list 2>/dev/null | grep -o 'build-tools;[0-9.]*' | sort -V | tail -1)"
+          echo "Installing $BUILD_TOOLS"
+          "$SDKMANAGER" "$BUILD_TOOLS"
+          NDK_VER="$("$SDKMANAGER" --list 2>/dev/null | grep -o 'ndk;27\.[0-9.]*' | sort -V | tail -1)"
+          echo "Installing $NDK_VER"
+          "$SDKMANAGER" "$NDK_VER"
+
+      - name: Gate (repo contract tests)
+        run: |
+          rustup target add aarch64-linux-android
+          cargo test -p duchamp-essential-daemon
+          ./tools/test-root-module-contract.sh
+          ./tools/test-aosp-integration.sh
+          ./tools/test-release-sync.sh
+
+      - name: Prepare signing key
+        id: signing
+        run: |
+          if [ -n "${{ secrets.DUCHAMP_KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.DUCHAMP_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "keystore=$RUNNER_TEMP/release.jks" >> "$GITHUB_OUTPUT"
+            echo "Using maintainer release key from secrets."
+          else
+            keytool -genkeypair -keystore "$RUNNER_TEMP/ci-dev.jks" -alias duchamp-essential \
+              -keyalg RSA -keysize 4096 -validity 9125 -storepass android -keypass android \
+              -dname "CN=Duchamp Essential CI,O=Duchamp Essential,C=US"
+            echo "keystore=$RUNNER_TEMP/ci-dev.jks" >> "$GITHUB_OUTPUT"
+            echo "No DUCHAMP_KEYSTORE_BASE64 secret: using an ephemeral CI key (NOT update-compatible)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Build root module (KernelSU Next / Magisk)
+        env:
+          DUCHAMP_KEYSTORE: ${{ steps.signing.outputs.keystore }}
+          DUCHAMP_KEY_ALIAS: ${{ secrets.DUCHAMP_KEY_ALIAS != '' && secrets.DUCHAMP_KEY_ALIAS || 'duchamp-essential' }}
+          DUCHAMP_KEYSTORE_PASS: ${{ secrets.DUCHAMP_KEYSTORE_PASS != '' && secrets.DUCHAMP_KEYSTORE_PASS || 'android' }}
+          DUCHAMP_KEY_PASS: ${{ secrets.DUCHAMP_KEY_PASS != '' && secrets.DUCHAMP_KEY_PASS || 'android' }}
+        run: ./tools/build-kernelsu-next-module.sh
+
+      - name: Build AOSP integration bundle
+        env:
+          DUCHAMP_KEYSTORE: ${{ steps.signing.outputs.keystore }}
+          DUCHAMP_KEY_ALIAS: ${{ secrets.DUCHAMP_KEY_ALIAS != '' && secrets.DUCHAMP_KEY_ALIAS || 'duchamp-essential' }}
+          DUCHAMP_KEYSTORE_PASS: ${{ secrets.DUCHAMP_KEYSTORE_PASS != '' && secrets.DUCHAMP_KEYSTORE_PASS || 'android' }}
+          DUCHAMP_KEY_PASS: ${{ secrets.DUCHAMP_KEY_PASS != '' && secrets.DUCHAMP_KEY_PASS || 'android' }}
+        run: |
+          ./tools/export-aosp-bundle.sh "$RUNNER_TEMP/aosp-bundle"
+          tar -czf "$RUNNER_TEMP/DuchampEssential-AOSP-bundle.tar.gz" -C "$RUNNER_TEMP/aosp-bundle" .
+
+      - name: Upload module ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Duchamp-Essential-KernelSU-Next-Magisk
+          path: out/kernelsu-next/*/*.zip
+
+      - name: Upload AOSP integration bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: DuchampEssential-AOSP-bundle
+          path: ${{ runner.temp }}/DuchampEssential-AOSP-bundle.tar.gz
