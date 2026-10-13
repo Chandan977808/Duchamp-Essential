@@ -27,7 +27,17 @@ command -v ninja >/dev/null 2>&1 || {
 }
 
 DUCHAMP_EXPECTED_REVISION="$(tr -d '[:space:]' <"$DUCHAMP_FLUTTER_ROOT/bin/internal/engine.version")"
-DUCHAMP_ACTUAL_REVISION="$(git -C "$DUCHAMP_ENGINE_SRC" rev-parse HEAD 2>/dev/null || true)"
+# Only enforce the revision match when the engine source tree carries its own
+# git metadata. A gclient-populated tree without .git resolves upward to the
+# outer SDK checkout, whose HEAD is unrelated to the engine sources; treating
+# that as the engine revision can never match and must be ignored.
+DUCHAMP_ENGINE_GITDIR="$(git -C "$DUCHAMP_ENGINE_SRC" rev-parse --absolute-git-dir 2>/dev/null || true)"
+DUCHAMP_ACTUAL_REVISION=""
+case "$DUCHAMP_ENGINE_GITDIR" in
+    "$DUCHAMP_ENGINE_SRC"/*)
+        DUCHAMP_ACTUAL_REVISION="$(git -C "$DUCHAMP_ENGINE_SRC" rev-parse HEAD 2>/dev/null || true)"
+        ;;
+esac
 
 if [ -n "$DUCHAMP_ACTUAL_REVISION" ] && [ "$DUCHAMP_ACTUAL_REVISION" != "$DUCHAMP_EXPECTED_REVISION" ]; then
     echo "Flutter framework and engine revisions do not match" >&2

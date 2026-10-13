@@ -93,12 +93,11 @@ for i in 1 2 3; do
   echo "gclient sync attempt $i failed, retrying..."
   sleep 15
 done
-# engine/src is deliberately gitless (gclient populates it without metadata).
-# GIT_CEILING_DIRECTORIES stops upward git discovery so the engine build
-# script's revision check cleanly skips. Never git-checkout inside
-# engine/src: without its own .git that would move the whole SDK checkout.
+# engine/src is populated by gclient without git metadata; the engine build
+# script skips its revision check in that case (it only enforces when the
+# tree carries its own .git). Never git-checkout inside engine/src without
+# its own .git: that would move the whole SDK checkout instead.
 export DUCHAMP_FLUTTER_ENGINE_SRC="$HOME/flutter/engine/src"
-export GIT_CEILING_DIRECTORIES="$DUCHAMP_FLUTTER_ENGINE_SRC"
 "$PROJECT/tools/build-flutter-engine.sh"
 
 echo "===== 8. Signing key (ONE key forever) ====="

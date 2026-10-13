@@ -105,12 +105,6 @@ jobs:
         working-directory: ${{ env.FLUTTER_SDK }}
         run: |
           export PATH="$FLUTTER_SDK/bin:$PATH"
-          # engine/src is deliberately gitless (populated by gclient without
-          # metadata). GIT_CEILING_DIRECTORIES stops upward git discovery so
-          # the build script's revision check cleanly skips instead of
-          # comparing against the outer checkout. Never git-checkout inside
-          # engine/src: without its own .git that would move the whole SDK.
-          export GIT_CEILING_DIRECTORIES="$FLUTTER_SDK/engine/src"
           DUCHAMP_FLUTTER_ENGINE_SRC="$FLUTTER_SDK/engine/src" \
             "$GITHUB_WORKSPACE/tools/build-flutter-engine.sh"
 
