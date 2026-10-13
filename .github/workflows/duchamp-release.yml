@@ -101,7 +101,26 @@ jobs:
           export PATH="$FLUTTER_SDK/bin:$PATH"
           flutter pub get --directory "$GITHUB_WORKSPACE/ui/flutter"
 
+      - name: Restore compiled engine cache
+        id: engine-prebuilt-cache
+        uses: actions/cache@v4
+        with:
+          path: runtime/flutter-engine/prebuilt
+          key: engine-prebuilt-${{ steps.flutter.outputs.engine_rev }}-${{ hashFiles('tools/build-flutter-engine.sh') }}
+
+      - name: Check compiled engine cache
+        id: engine-prebuilt
+        run: |
+          if [ -f runtime/flutter-engine/prebuilt/android-arm64/libflutter_engine.so ] \
+            && [ -f runtime/flutter-engine/prebuilt/android-arm64/icudtl.dat ]; then
+            echo "hit=true" >> "$GITHUB_OUTPUT"
+            echo "Reusing cached engine build."
+          else
+            echo "hit=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build pinned Flutter engine
+        if: steps.engine-prebuilt.outputs.hit != 'true'
         working-directory: ${{ env.FLUTTER_SDK }}
         run: |
           export PATH="$FLUTTER_SDK/bin:$PATH"

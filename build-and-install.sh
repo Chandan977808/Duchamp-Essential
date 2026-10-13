@@ -130,6 +130,19 @@ cp -a "$HOST_SO" "$LIBS/libduchamp_essential_host.so"
 cp -a "$ENGINE_PREBUILT/libflutter_engine.so" "$LIBS/libflutter_engine.so"
 cp -a "$AOT/arm64-v8a/app.so" "$LIBS/libapp.so"
 
+# The locally built engine carries full symbols; strip what the dynamic
+# linker never needs (dynamic/JNI symbols are preserved). The pipeline's own
+# 16K alignment and native-parity checks below verify the result.
+DUCHAMP_LLVM_STRIP="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
+[ -x "$DUCHAMP_LLVM_STRIP" ] || {
+    echo "Missing LLVM strip tool: $DUCHAMP_LLVM_STRIP" >&2
+    exit 1
+}
+"$DUCHAMP_LLVM_STRIP" --strip-unneeded "$LIBS/libflutter_engine.so"
+echo "APK_LIB_SIZES_BYTES:"
+du -b "$LIBS"/*.so
+du -sb "$ASSETS"
+
 "$AAPT2" compile --dir "$ROOT/android/package/res" -o "$STAGE/compiled_res.zip"
 
 "$AAPT2" link \
