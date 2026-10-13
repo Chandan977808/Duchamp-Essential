@@ -101,6 +101,25 @@ jobs:
           export PATH="$FLUTTER_SDK/bin:$PATH"
           flutter pub get --directory "$GITHUB_WORKSPACE/ui/flutter"
 
+      - name: Forensic check (temporary)
+        working-directory: ${{ env.FLUTTER_SDK }}
+        run: |
+          echo "which flutter: $(command -v flutter)"
+          echo "readlink flutter: $(readlink -f "$(command -v flutter)")"
+          echo "outer .git:"; ls -la .git | head -3
+          echo "src .git:"; ls -la engine/src/.git
+          echo "src gitfile content:"; cat engine/src/.git 2>/dev/null || echo "(is a dir)"
+          echo "outer HEAD: $(git rev-parse HEAD)"
+          echo "src HEAD: $(git -C engine/src rev-parse HEAD)"
+          echo "outer remotes:"; git remote -v
+          echo "src remotes:"; git -C engine/src remote -v
+          echo "engine.version link/file:"; ls -la bin/internal/engine.version
+          test -L bin/internal/engine.version && echo IS_SYMLINK || echo REGULAR_FILE
+          readlink bin/internal/engine.version || true
+          ls -l --time-style=full-iso bin/internal/engine.version
+          echo "file content: $(tr -d '[:space:]' <bin/internal/engine.version)"
+          echo "PATH=$PATH"
+
       - name: Build pinned Flutter engine (revision-guarded)
         working-directory: ${{ env.FLUTTER_SDK }}
         run: |
