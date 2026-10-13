@@ -64,7 +64,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ steps.flutter.outputs.root }}/engine/src
-          key: engine-src-v2-${{ steps.flutter.outputs.engine_rev }}
+          key: engine-src-v3-${{ steps.flutter.outputs.engine_rev }}
 
       - name: Sync Flutter engine sources
         if: steps.engine-cache.outputs.cache-hit != 'true'
@@ -86,6 +86,9 @@ jobs:
       - name: Pin engine checkout to the framework revision
         working-directory: ${{ steps.flutter.outputs.root }}
         run: |
+          # NOTE: this must run AFTER every gclient sync and NOTHING may sync
+          # after it: gclient also advances the outer SDK checkout, which
+          # changes bin/internal/engine.version under our feet.
           ENGINE_SHA="$(tr -d '[:space:]' <bin/internal/engine.version)"
           echo "framework engine: $ENGINE_SHA"
           cd engine/src
@@ -95,9 +98,12 @@ jobs:
             sleep 15
           done
           git checkout "$ENGINE_SHA"
-          cd ../..
-          gclient sync --no-history
-          echo "engine checkout: $(git -C engine/src rev-parse HEAD)"
+          ACTUAL="$(git rev-parse HEAD)"
+          echo "engine checkout: $ACTUAL"
+          [ "$ACTUAL" = "$ENGINE_SHA" ] || {
+            echo "Engine pin failed: $ACTUAL != $ENGINE_SHA" >&2
+            exit 1
+          }
 
       - name: Build pinned Flutter engine
         run: ./tools/build-flutter-engine.sh
