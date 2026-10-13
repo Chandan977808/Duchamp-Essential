@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-class RodinBypassThresholdSelector extends StatefulWidget {
-  const RodinBypassThresholdSelector({
+class DuchampBypassThresholdSelector extends StatefulWidget {
+  const DuchampBypassThresholdSelector({
     super.key,
     required this.value,
     required this.enabled,
@@ -17,10 +17,10 @@ class RodinBypassThresholdSelector extends StatefulWidget {
   final ValueChanged<int>? onPreview;
 
   @override
-  State<RodinBypassThresholdSelector> createState() => _ThresholdSliderState();
+  State<DuchampBypassThresholdSelector> createState() => _ThresholdSliderState();
 }
 
-class _ThresholdSliderState extends State<RodinBypassThresholdSelector> {
+class _ThresholdSliderState extends State<DuchampBypassThresholdSelector> {
   static const values = <int>[0, 20, 40, 80, 90];
   int? _preview;
 

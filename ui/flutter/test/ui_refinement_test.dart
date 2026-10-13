@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rodin_essential_ui/main.dart';
+import 'package:duchamp_essential_ui/main.dart';
 
 void main() {
   testWidgets('Home and Hubs pin service status to the card trailing edge', (
@@ -33,11 +33,11 @@ void main() {
       );
       await tester.pumpAndSettle();
       final emblem = find.byWidgetPredicate(
-        (w) => w.runtimeType.toString() == '_RodinAppEmblem',
+        (w) => w.runtimeType.toString() == '_DuchampAppEmblem',
       );
       expect(
         (tester.getRect(emblem).top -
-                tester.getRect(find.text('Rodin Essential')).top)
+                tester.getRect(find.text('Duchamp Essential')).top)
             .abs(),
         lessThan(3),
       );

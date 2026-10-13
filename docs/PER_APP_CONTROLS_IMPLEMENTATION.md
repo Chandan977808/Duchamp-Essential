@@ -30,7 +30,7 @@ not an acceptable per-app operation.
 
 Turning off Per-App Controls preserves its saved profiles but releases active
 overrides. Resetting an app removes its profile and releases its controls if
-active. Reset all clears profiles and releases overrides. Disabling Rodin
+active. Reset all clears profiles and releases overrides. Disabling Duchamp
 Essential takes priority over every profile.
 
 ## Implemented foundation
@@ -99,7 +99,7 @@ local APK passed signing, zero-DEX and
 16 KB alignment checks.
 
 The opt-in `tools/test-per-app-device.py --apply` test passed on the development
-Rodin: Settings profile activation, touch/GPU/CPU-range acknowledgement, unchanged
+Duchamp: Settings profile activation, touch/GPU/CPU-range acknowledgement, unchanged
 CPU governor, conflicting-global-write rejection, force-closed UI, daemon restart
 and saved-profile recovery, launcher restoration, original thermal-mode recovery,
 active-profile reset, and preservation of saved global selections. It removes
@@ -107,7 +107,7 @@ only its temporary profile and leaves Per-App Controls disabled afterwards.
 
 On the current development phone, the saved DevCheck CPU mask `249` was also
 verified: CPU1/CPU2 offline (`0,3-7`) while DevCheck is foreground, unchanged
-after force-closing Rodin Essential, and restored to `0-7` when leaving DevCheck.
+after force-closing Duchamp Essential, and restored to `0-7` when leaving DevCheck.
 CPU hotplug skips redundant writes and retries only transient EBUSY failures
 twice (20/40 ms); permanent failures remain errors and trigger rollback.
 

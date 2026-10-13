@@ -45,5 +45,5 @@ finally:
     else:
         live.ctl('ACTION app.reset 0 ' + package)
     live.ctl('SET app.enabled ' + ('1' if initial['enabled'] else '0'))
-    live.shell('am start -n io.github.neeschal.rodinessential/.RodinActivity')
+    live.shell('am start -n com.saan.duchamp.essential/.DuchampActivity')
     assert live.ctl('GET app.controls')['config'] == initial

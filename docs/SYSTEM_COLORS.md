@@ -1,7 +1,7 @@
 # System Colors
 
 System Colors is available under **Hubs → Display & Input**. It changes Android's
-Material You palette, not the panel's calibration and not Rodin's own app theme.
+Material You palette, not the panel's calibration and not Duchamp's own app theme.
 The APK remains zero-DEX and runs with its ordinary application UID.
 
 ## Using the feature
@@ -50,9 +50,9 @@ asynchronous and can finish after the selected swatch is visible.
 
 Some HyperOS builds create a display-wide transition snapshot for palette
 overlay changes. While it covers the screen, Android can reject touches as
-obscured. This is a system transition, not a disabled Rodin control. Grouping
+obscured. This is a system transition, not a disabled Duchamp control. Grouping
 slider edits reduces interruptions but does not promise zero-latency global
-theme changes. Rodin does not disable obscured-touch protection, change system
+theme changes. Duchamp does not disable obscured-touch protection, change system
 animation scales, or patch the ROM to conceal this limitation.
 
 Compatible apps must use dynamic colors. A fixed keyboard or OEM theme, or an
@@ -67,7 +67,7 @@ Android 12 introduced five native tonal families with thirteen values per family
 Android 13 expanded the supported generation styles. See the
 [AOSP dynamic-color specification](https://source.android.com/docs/core/display/dynamic-color).
 
-| Android version | Styles exposed by Rodin |
+| Android version | Styles exposed by Duchamp |
 | --- | --- |
 | 12 / 12L | Tonal |
 | 13 | Tonal, Vibrant, Expressive, Soft, Rainbow, Fruit Salad |
@@ -78,7 +78,7 @@ Soft maps to `SPRITZ`; Monochrome maps to `MONOCHROMATIC`. Android 17's
 retain the same palette-setting mechanism and seven styles. This is a platform
 contract, not a claim that every Android 17 OEM build has been device-tested.
 
-On Android 14 and newer, Rodin also exposes Android's native Material contrast
+On Android 14 and newer, Duchamp also exposes Android's native Material contrast
 levels when the framework contrast resources are present. **Low**, **Standard**
 and **High** map to the platform `contrast_level` range -1.0, 0.0 and 1.0. This
 changes Material role contrast, not the physical panel's contrast. The control
@@ -86,16 +86,16 @@ is hidden on unsupported builds. A successful change requires both setting
 readback and stable regeneration of light and dark container/text roles; a
 failed change restores the preceding value.
 
-Rodin does not identify support from overlay package or fabricated-overlay
+Duchamp does not identify support from overlay package or fabricated-overlay
 names. Those identifiers are private to each SystemUI implementation and differ
-between AOSP-derived ROMs and OEM builds. On Android 12 or newer, Rodin checks
+between AOSP-derived ROMs and OEM builds. On Android 12 or newer, Duchamp checks
 the native framework palette resources, then verifies both the standard setting
 and the resulting native resources after each change. This uses the same AOSP
 contract on AOSP, Pixel-style, Lineage-derived, HyperOS, ColorOS/OxygenOS, and
 other OEM ROMs without a ROM-name allowlist.
 
 A ROM that removes or disables Android's dynamic-color engine cannot provide a
-system-wide Material You palette; on that build Rodin remains preview-only and
+system-wide Material You palette; on that build Duchamp remains preview-only and
 does not fabricate a result. A standalone APK or an older backend cannot apply
 the setting.
 
@@ -114,7 +114,7 @@ rejected rather than replaced.
 
 SettingsProvider stores the choice and SystemUI generates the overlays. Neither
 the APK nor the daemon needs a palette reapply loop or a new boot hook. Closing
-Rodin does not remove the choice. Changing it later in another theme picker is
+Duchamp does not remove the choice. Changing it later in another theme picker is
 respected. A factory reset clears the Android user's settings normally.
 
 The app stores a small last-confirmed source/seed/style hint for presentation
@@ -177,7 +177,7 @@ Android commands run off the UI thread with bounded subprocess timeouts.
 bash tools/test-aosp-integration.sh
 bash tools/test-release-sync.sh
 bash tools/test-root-module-contract.sh
-RODIN_BUILD_ONLY=1 ./build-and-install.sh
+DUCHAMP_BUILD_ONLY=1 ./build-and-install.sh
 ```
 
 On Windows, the palette transaction tests can run without compiling the

@@ -1,6 +1,6 @@
 # Bypass charging
 
-Rodin uses a compatible kernel charge-pause power path. It does not emulate
+Duchamp uses a compatible kernel charge-pause power path. It does not emulate
 bypass by writing `input_suspend`, suppress battery measurements, or disable
 charger protections. Battery-neutral measurements do not prove physical battery
 isolation; under an inadequate adapter or high load, the battery can supplement
@@ -14,7 +14,7 @@ The battery power-supply directory must expose all of the following:
 - `bypass_charging` (or `bypass_charge`): a readable/writable request boolean.
 - `bypass_charging_active`: a separately measured confirmation boolean.
 
-An enabled request alone is not evidence that bypass is active. Rodin checks
+An enabled request alone is not evidence that bypass is active. Duchamp checks
 external-power presence, the kernel confirmation, and measured battery current.
 Unavailable telemetry, charging current, or battery supplementation is reported
 explicitly rather than presenting a false direct-power state.

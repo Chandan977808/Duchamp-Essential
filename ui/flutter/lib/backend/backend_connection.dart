@@ -1,9 +1,9 @@
-enum RodinConnectionState {
+enum DuchampConnectionState {
   connecting,
   online,
   offline;
 
-  static RodinConnectionState fromNative(int status) => switch (status) {
+  static DuchampConnectionState fromNative(int status) => switch (status) {
     1 => online,
     0 => offline,
     _ => connecting,

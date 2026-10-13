@@ -1,121 +1,121 @@
-(type rodin_daemon_release_probe)
-(typeattributeset domain (rodin_daemon_release_probe))
-(typeattributeset coredomain (rodin_daemon_release_probe))
-(typeattributeset mlstrustedsubject (rodin_daemon_release_probe))
-(typeattributeset rodin_native_touch_access (rodin_daemon_release_probe))
+(type duchamp_daemon_release_probe)
+(typeattributeset domain (duchamp_daemon_release_probe))
+(typeattributeset coredomain (duchamp_daemon_release_probe))
+(typeattributeset mlstrustedsubject (duchamp_daemon_release_probe))
+(typeattributeset duchamp_native_touch_access (duchamp_daemon_release_probe))
 
-(type rodin_app_release_probe)
-(typeattributeset domain (rodin_app_release_probe))
-(typeattributeset coredomain (rodin_app_release_probe))
-(typeattributeset appdomain (rodin_app_release_probe))
-(typeattributeset untrusted_app_all (rodin_app_release_probe))
+(type duchamp_app_release_probe)
+(typeattributeset domain (duchamp_app_release_probe))
+(typeattributeset coredomain (duchamp_app_release_probe))
+(typeattributeset appdomain (duchamp_app_release_probe))
+(typeattributeset untrusted_app_all (duchamp_app_release_probe))
 
-(type rodin_daemon_data_release_probe)
-(typeattributeset file_type (rodin_daemon_data_release_probe))
-(typeattributeset data_file_type (rodin_daemon_data_release_probe))
-(typeattributeset core_data_file_type (rodin_daemon_data_release_probe))
+(type duchamp_daemon_data_release_probe)
+(typeattributeset file_type (duchamp_daemon_data_release_probe))
+(typeattributeset data_file_type (duchamp_daemon_data_release_probe))
+(typeattributeset core_data_file_type (duchamp_daemon_data_release_probe))
 
-(type rodin_mali_devfreq_release_probe)
-(typeattributeset fs_type (rodin_mali_devfreq_release_probe))
-(typeattributeset sysfs_type (rodin_mali_devfreq_release_probe))
+(type duchamp_mali_devfreq_release_probe)
+(typeattributeset fs_type (duchamp_mali_devfreq_release_probe))
+(typeattributeset sysfs_type (duchamp_mali_devfreq_release_probe))
 
-(type rodin_battery_supply_release_probe)
-(typeattributeset fs_type (rodin_battery_supply_release_probe))
-(typeattributeset sysfs_type (rodin_battery_supply_release_probe))
+(type duchamp_battery_supply_release_probe)
+(typeattributeset fs_type (duchamp_battery_supply_release_probe))
+(typeattributeset sysfs_type (duchamp_battery_supply_release_probe))
 
-(type rodin_sysfs_rw_release_probe)
-(typeattributeset fs_type (rodin_sysfs_rw_release_probe))
-(typeattributeset sysfs_type (rodin_sysfs_rw_release_probe))
+(type duchamp_sysfs_rw_release_probe)
+(typeattributeset fs_type (duchamp_sysfs_rw_release_probe))
+(typeattributeset sysfs_type (duchamp_sysfs_rw_release_probe))
 
-(type rodin_proc_rw_release_probe)
-(typeattributeset fs_type (rodin_proc_rw_release_probe))
-(typeattributeset proc_type (rodin_proc_rw_release_probe))
+(type duchamp_proc_rw_release_probe)
+(typeattributeset fs_type (duchamp_proc_rw_release_probe))
+(typeattributeset proc_type (duchamp_proc_rw_release_probe))
 
-(type rodin_swap_block_release_probe)
-(typeattributeset dev_type (rodin_swap_block_release_probe))
+(type duchamp_swap_block_release_probe)
+(typeattributeset dev_type (duchamp_swap_block_release_probe))
 
-(type rodin_input_device_release_probe)
-(typeattributeset dev_type (rodin_input_device_release_probe))
+(type duchamp_input_device_release_probe)
+(typeattributeset dev_type (duchamp_input_device_release_probe))
 
-(type rodin_touch_hal_release_probe)
-(typeattributeset domain (rodin_touch_hal_release_probe))
-(typeattributeset halserverdomain (rodin_touch_hal_release_probe))
+(type duchamp_touch_hal_release_probe)
+(typeattributeset domain (duchamp_touch_hal_release_probe))
+(typeattributeset halserverdomain (duchamp_touch_hal_release_probe))
 
-(type rodin_display_hal_release_probe)
-(typeattributeset domain (rodin_display_hal_release_probe))
-(typeattributeset halserverdomain (rodin_display_hal_release_probe))
+(type duchamp_display_hal_release_probe)
+(typeattributeset domain (duchamp_display_hal_release_probe))
+(typeattributeset halserverdomain (duchamp_display_hal_release_probe))
 
-(type rodin_hal_service_release_probe)
-(typeattributeset service_manager_type (rodin_hal_service_release_probe))
-(typeattributeset protected_service (rodin_hal_service_release_probe))
-(typeattributeset hal_service_type (rodin_hal_service_release_probe))
+(type duchamp_hal_service_release_probe)
+(typeattributeset service_manager_type (duchamp_hal_service_release_probe))
+(typeattributeset protected_service (duchamp_hal_service_release_probe))
+(typeattributeset hal_service_type (duchamp_hal_service_release_probe))
 
-(allow rodin_daemon_release_probe self (capability
+(allow duchamp_daemon_release_probe self (capability
     (dac_override sys_admin sys_nice sys_ptrace)))
-(allow rodin_daemon_release_probe self (unix_stream_socket
+(allow duchamp_daemon_release_probe self (unix_stream_socket
     (create ioctl read getattr write setattr lock append bind connect listen
      accept getopt setopt shutdown map)))
-(allow rodin_daemon_release_probe self (netlink_kobject_uevent_socket
+(allow duchamp_daemon_release_probe self (netlink_kobject_uevent_socket
     (create bind read getattr getopt setopt)))
 
-(allow rodin_daemon_release_probe rodin_daemon_data_release_probe
+(allow duchamp_daemon_release_probe duchamp_daemon_data_release_probe
     (dir (add_name create getattr ioctl lock open read remove_name search
           setattr write)))
-(allow rodin_daemon_release_probe rodin_daemon_data_release_probe
+(allow duchamp_daemon_release_probe duchamp_daemon_data_release_probe
     (file (append create getattr ioctl lock map open read rename setattr unlink
            write)))
 
-(allow rodin_app_release_probe rodin_daemon_release_probe
+(allow duchamp_app_release_probe duchamp_daemon_release_probe
     (unix_stream_socket (connectto)))
 
-(allow rodin_daemon_release_probe sysfs (dir (search)))
-(allow rodin_daemon_release_probe rodin_mali_devfreq_release_probe (dir (getattr search open read)))
-(allow rodin_daemon_release_probe rodin_mali_devfreq_release_probe (file (getattr open read write ioctl lock map)))
-(allow rodin_daemon_release_probe rodin_battery_supply_release_probe (file (getattr open read write ioctl lock map)))
+(allow duchamp_daemon_release_probe sysfs (dir (search)))
+(allow duchamp_daemon_release_probe duchamp_mali_devfreq_release_probe (dir (getattr search open read)))
+(allow duchamp_daemon_release_probe duchamp_mali_devfreq_release_probe (file (getattr open read write ioctl lock map)))
+(allow duchamp_daemon_release_probe duchamp_battery_supply_release_probe (file (getattr open read write ioctl lock map)))
 
-(allow rodin_daemon_release_probe rodin_sysfs_rw_release_probe
+(allow duchamp_daemon_release_probe duchamp_sysfs_rw_release_probe
     (dir (getattr open read search)))
-(allow rodin_daemon_release_probe rodin_sysfs_rw_release_probe
+(allow duchamp_daemon_release_probe duchamp_sysfs_rw_release_probe
     (file (getattr ioctl lock map open read write)))
-(allow rodin_daemon_release_probe rodin_proc_rw_release_probe
+(allow duchamp_daemon_release_probe duchamp_proc_rw_release_probe
     (file (getattr ioctl lock map open read write)))
-(allow rodin_daemon_release_probe rodin_swap_block_release_probe
+(allow duchamp_daemon_release_probe duchamp_swap_block_release_probe
     (blk_file (getattr ioctl lock map open read write)))
-(allow rodin_daemon_release_probe rodin_input_device_release_probe
+(allow duchamp_daemon_release_probe duchamp_input_device_release_probe
     (chr_file (getattr ioctl lock map open read write)))
 
-(allow rodin_daemon_release_probe rodin_touch_hal_release_probe
+(allow duchamp_daemon_release_probe duchamp_touch_hal_release_probe
     (binder (call transfer)))
-(allow rodin_touch_hal_release_probe rodin_daemon_release_probe
+(allow duchamp_touch_hal_release_probe duchamp_daemon_release_probe
     (binder (transfer)))
-(allow rodin_daemon_release_probe rodin_touch_hal_release_probe (fd (use)))
-(allow rodin_daemon_release_probe rodin_touch_hal_release_probe (process (ptrace)))
-(allow rodin_daemon_release_probe rodin_touch_hal_release_probe (dir (search)))
-(allow rodin_daemon_release_probe rodin_touch_hal_release_probe (file (getattr open read write)))
+(allow duchamp_daemon_release_probe duchamp_touch_hal_release_probe (fd (use)))
+(allow duchamp_daemon_release_probe duchamp_touch_hal_release_probe (process (ptrace)))
+(allow duchamp_daemon_release_probe duchamp_touch_hal_release_probe (dir (search)))
+(allow duchamp_daemon_release_probe duchamp_touch_hal_release_probe (file (getattr open read write)))
 
-(allow rodin_daemon_release_probe rodin_display_hal_release_probe
+(allow duchamp_daemon_release_probe duchamp_display_hal_release_probe
     (binder (call transfer)))
-(allow rodin_display_hal_release_probe rodin_daemon_release_probe
+(allow duchamp_display_hal_release_probe duchamp_daemon_release_probe
     (binder (transfer)))
-(allow rodin_daemon_release_probe rodin_display_hal_release_probe (fd (use)))
-(allow rodin_daemon_release_probe rodin_hal_service_release_probe
+(allow duchamp_daemon_release_probe duchamp_display_hal_release_probe (fd (use)))
+(allow duchamp_daemon_release_probe duchamp_hal_service_release_probe
     (service_manager (find)))
 
-(allow rodin_daemon_release_probe system_server (binder (call transfer)))
-(allow system_server rodin_daemon_release_probe (binder (transfer)))
-(allow rodin_daemon_release_probe system_server (fd (use)))
-(allow system_server rodin_daemon_release_probe (fd (use)))
-(allow system_server rodin_daemon_release_probe (fifo_file (write)))
-(allow rodin_daemon_release_probe display_service (service_manager (find)))
-(allow rodin_daemon_release_probe power_service (service_manager (find)))
-(allow rodin_daemon_release_probe settings_service (service_manager (find)))
-(allow rodin_daemon_release_probe window_service (service_manager (find)))
-(allow rodin_daemon_release_probe activity_service (service_manager (find)))
-(allow rodin_daemon_release_probe package_service (service_manager (find)))
-(allow rodin_daemon_release_probe logd (unix_stream_socket (connectto)))
-(allow rodin_daemon_release_probe logdr_socket (sock_file (write)))
-(allow rodin_daemon_release_probe overlay_service (service_manager (find)))
-(allow rodin_daemon_release_probe system_file
+(allow duchamp_daemon_release_probe system_server (binder (call transfer)))
+(allow system_server duchamp_daemon_release_probe (binder (transfer)))
+(allow duchamp_daemon_release_probe system_server (fd (use)))
+(allow system_server duchamp_daemon_release_probe (fd (use)))
+(allow system_server duchamp_daemon_release_probe (fifo_file (write)))
+(allow duchamp_daemon_release_probe display_service (service_manager (find)))
+(allow duchamp_daemon_release_probe power_service (service_manager (find)))
+(allow duchamp_daemon_release_probe settings_service (service_manager (find)))
+(allow duchamp_daemon_release_probe window_service (service_manager (find)))
+(allow duchamp_daemon_release_probe activity_service (service_manager (find)))
+(allow duchamp_daemon_release_probe package_service (service_manager (find)))
+(allow duchamp_daemon_release_probe logd (unix_stream_socket (connectto)))
+(allow duchamp_daemon_release_probe logdr_socket (sock_file (write)))
+(allow duchamp_daemon_release_probe overlay_service (service_manager (find)))
+(allow duchamp_daemon_release_probe system_file
     (file (execute execute_no_trans getattr map open read)))
-(allow rodin_daemon_release_probe toolbox_exec
+(allow duchamp_daemon_release_probe toolbox_exec
     (file (execute execute_no_trans getattr map open read)))

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rodin_essential_ui/bypass_threshold_selector.dart';
+import 'package:duchamp_essential_ui/bypass_threshold_selector.dart';
 
 void main() {
   Widget page({
@@ -17,7 +17,7 @@ void main() {
         child: Center(
           child: SizedBox(
             width: 300,
-            child: RodinBypassThresholdSelector(
+            child: DuchampBypassThresholdSelector(
               value: 20,
               enabled: enabled,
               onChanged: commit,

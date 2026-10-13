@@ -4,8 +4,8 @@ This directory is a source template. Run `tools/export-aosp-bundle.sh` with a
 persistent APK signing keystore to build the ARM64 APK and daemon binaries and
 create a self-contained directory for an Android ROM source tree.
 
-The APK uses an ordinary application UID. The `rodin_daemon` init service is the
-only root process, and SELinux permits only Rodin Essential's dedicated app
+The APK uses an ordinary application UID. The `duchamp_daemon` init service is the
+only root process, and SELinux permits only Duchamp Essential's dedicated app
 domain to reach its abstract control socket on production builds. The APK is
 imported as `presigned` and `preprocessed`; the export includes only its public
 certificate, while the private key remains with the ROM maintainer.
@@ -22,8 +22,8 @@ these source `.te` files cannot simply be pasted into a compiled CIL file.
 
 For a checked-out ROM tree,
 `tools/integrate-aosp-rom.sh <aosp-root> <product-makefile> <boardconfig>` builds,
-stages, and idempotently wires the bundle under `vendor/rodin-essential`.
+stages, and idempotently wires the bundle under `vendor/duchamp-essential`.
 Passing only `<aosp-root>` performs stage-only integration and prints the two
-required lines. Both helpers require the `RODIN_KEYSTORE`,
-`RODIN_KEY_ALIAS`, `RODIN_KEYSTORE_PASS`, and `RODIN_KEY_PASS` environment used
+required lines. Both helpers require the `DUCHAMP_KEYSTORE`,
+`DUCHAMP_KEY_ALIAS`, `DUCHAMP_KEYSTORE_PASS`, and `DUCHAMP_KEY_PASS` environment used
 for that ROM's future updates.

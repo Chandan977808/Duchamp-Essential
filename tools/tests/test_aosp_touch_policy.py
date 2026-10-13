@@ -24,8 +24,8 @@ neverallow ~dac_override_allowed self:global_capability_class_set dac_override;
 class PolicyPreparationTests(unittest.TestCase):
     def test_scoped_and_idempotent(self):
         updated = module.prepare("attribute domain;\n", DOMAIN)
-        self.assertIn("  -rodin_native_touch_access\n", updated[1])
-        self.assertIn("  rodin_native_touch_access\n", updated[1])
+        self.assertIn("  -duchamp_native_touch_access\n", updated[1])
+        self.assertIn("  duchamp_native_touch_access\n", updated[1])
         self.assertEqual(module.prepare(*updated), updated)
         self.assertIn("neverallow ~dac_override_allowed", updated[1])
 
@@ -35,7 +35,7 @@ class PolicyPreparationTests(unittest.TestCase):
 
     def test_partial_patch_rejected(self):
         with self.assertRaises(ValueError):
-            module.prepare("attribute rodin_native_touch_access;", DOMAIN)
+            module.prepare("attribute duchamp_native_touch_access;", DOMAIN)
 
     def test_ambiguous_rules_rejected(self):
         with self.assertRaises(ValueError):
@@ -68,8 +68,8 @@ class PolicyPreparationTests(unittest.TestCase):
             for _ in range(2):
                 result = subprocess.run([sys.executable, module.__file__, directory, "--apply"], capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(attributes.read_text().count("attribute rodin_native_touch_access;"), 1)
-            self.assertIn("expandattribute rodin_native_touch_access false;", attributes.read_text())
+            self.assertEqual(attributes.read_text().count("attribute duchamp_native_touch_access;"), 1)
+            self.assertIn("expandattribute duchamp_native_touch_access false;", attributes.read_text())
 
 
 if __name__ == "__main__":

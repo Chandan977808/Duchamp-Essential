@@ -4,8 +4,8 @@ import 'page_motion.dart';
 
 /// A tab tap has one destination, not a sightseeing tour of the other hubs.
 /// NEESCHAL: keep the route direct, and keep the user's page state intact.
-class RodinTabHandoff {
-  RodinTabHandoff({
+class DuchampTabHandoff {
+  DuchampTabHandoff({
     required this.startPage,
     required this.target,
     required Map<int, double> positions,
@@ -39,8 +39,8 @@ class RodinTabHandoff {
 /// Its inexpensive page slots do not render the content. Content has stable
 /// keyed slots here, so a direct tab handoff never mounts an intermediate page
 /// and never reparents a visited page to a fresh subtree.
-class RodinRootPager extends StatefulWidget {
-  const RodinRootPager({
+class DuchampRootPager extends StatefulWidget {
+  const DuchampRootPager({
     required this.controller,
     required this.children,
     required this.onPageChanged,
@@ -57,11 +57,11 @@ class RodinRootPager extends StatefulWidget {
   final ScrollPhysics physics;
 
   @override
-  State<RodinRootPager> createState() => RodinRootPagerState();
+  State<DuchampRootPager> createState() => DuchampRootPagerState();
 }
 
-class RodinRootPagerState extends State<RodinRootPager> {
-  RodinTabHandoff? _handoff;
+class DuchampRootPagerState extends State<DuchampRootPager> {
+  DuchampTabHandoff? _handoff;
   final Set<int> _visited = <int>{};
   Drag? _drag;
 
@@ -90,7 +90,7 @@ class RodinRootPagerState extends State<RodinRootPager> {
     // Capture the current geometry, not the previous animation's endpoint.
     // Reversing A→B→A therefore starts where the surfaces actually are.
     setState(() {
-      _handoff = RodinTabHandoff(
+      _handoff = DuchampTabHandoff(
         startPage: startPage,
         target: target,
         positions: positions,
@@ -181,7 +181,7 @@ class RodinRootPagerState extends State<RodinRootPager> {
                                 (positions[index] ?? 2) * direction,
                                 0,
                               ),
-                              child: RodinMotionViewportScope(
+                              child: DuchampMotionViewportScope(
                                 inFlight: moving,
                                 // This is translation, not rescaling a page.
                                 // Stable display lists are enough; capturing

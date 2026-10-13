@@ -17,18 +17,18 @@ use std::time::Duration;
 // FFI reads are atomic only; permission UI is requested from the
 // NativeActivity/main choreographer thread.
 
-static RODIN_PHOTO_ACTIVITY: std::sync::atomic::AtomicUsize =
+static DUCHAMP_PHOTO_ACTIVITY: std::sync::atomic::AtomicUsize =
     std::sync::atomic::AtomicUsize::new(0);
-static RODIN_PHOTO_CHOREOGRAPHER: std::sync::atomic::AtomicUsize =
+static DUCHAMP_PHOTO_CHOREOGRAPHER: std::sync::atomic::AtomicUsize =
     std::sync::atomic::AtomicUsize::new(0);
-static RODIN_PHOTO_PERMISSION_STATE: std::sync::atomic::AtomicI32 =
+static DUCHAMP_PHOTO_PERMISSION_STATE: std::sync::atomic::AtomicI32 =
     std::sync::atomic::AtomicI32::new(0);
-static RODIN_PHOTO_REQUEST_PENDING: std::sync::atomic::AtomicBool =
+static DUCHAMP_PHOTO_REQUEST_PENDING: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
-static RODIN_PHOTO_REQUEST_SCHEDULED: std::sync::atomic::AtomicBool =
+static DUCHAMP_PHOTO_REQUEST_SCHEDULED: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 
-fn rodin_photo_vm_and_object(
+fn duchamp_photo_vm_and_object(
     activity: *mut ANativeActivity,
 ) -> Option<(jni::JavaVM, jni::sys::jobject, i32)> {
     if activity.is_null() {
@@ -51,8 +51,8 @@ fn rodin_photo_vm_and_object(
     Some((vm, object_raw, sdk))
 }
 
-fn rodin_prepare_launch_window(activity: *mut ANativeActivity) {
-    let Some((vm, object_raw, _)) = rodin_photo_vm_and_object(activity) else {
+fn duchamp_prepare_launch_window(activity: *mut ANativeActivity) {
+    let Some((vm, object_raw, _)) = duchamp_photo_vm_and_object(activity) else {
         return;
     };
 
@@ -100,8 +100,8 @@ fn rodin_prepare_launch_window(activity: *mut ANativeActivity) {
     }
 }
 
-fn rodin_photo_check_named(activity: *mut ANativeActivity, permission_name: &str) -> bool {
-    let Some((vm, object_raw, _)) = rodin_photo_vm_and_object(activity) else {
+fn duchamp_photo_check_named(activity: *mut ANativeActivity, permission_name: &str) -> bool {
+    let Some((vm, object_raw, _)) = duchamp_photo_vm_and_object(activity) else {
         return false;
     };
 
@@ -137,7 +137,7 @@ fn rodin_photo_check_named(activity: *mut ANativeActivity, permission_name: &str
     }
 }
 
-fn rodin_photo_compute_permission_state(activity: *mut ANativeActivity) -> i32 {
+fn duchamp_photo_compute_permission_state(activity: *mut ANativeActivity) -> i32 {
     if activity.is_null() {
         return 0;
     }
@@ -145,12 +145,12 @@ fn rodin_photo_compute_permission_state(activity: *mut ANativeActivity) -> i32 {
     let sdk = unsafe { (*activity).sdk_version };
 
     if sdk >= 33 {
-        if rodin_photo_check_named(activity, "android.permission.READ_MEDIA_IMAGES") {
+        if duchamp_photo_check_named(activity, "android.permission.READ_MEDIA_IMAGES") {
             return 2;
         }
 
         if sdk >= 34
-            && rodin_photo_check_named(
+            && duchamp_photo_check_named(
                 activity,
                 "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
             )
@@ -159,21 +159,21 @@ fn rodin_photo_compute_permission_state(activity: *mut ANativeActivity) -> i32 {
         }
 
         0
-    } else if rodin_photo_check_named(activity, "android.permission.READ_EXTERNAL_STORAGE") {
+    } else if duchamp_photo_check_named(activity, "android.permission.READ_EXTERNAL_STORAGE") {
         2
     } else {
         0
     }
 }
 
-fn rodin_photo_refresh_permission(activity: *mut ANativeActivity) {
-    let state = rodin_photo_compute_permission_state(activity);
+fn duchamp_photo_refresh_permission(activity: *mut ANativeActivity) {
+    let state = duchamp_photo_compute_permission_state(activity);
 
-    RODIN_PHOTO_PERMISSION_STATE.store(state, std::sync::atomic::Ordering::Release);
+    DUCHAMP_PHOTO_PERMISSION_STATE.store(state, std::sync::atomic::Ordering::Release);
 }
 
-fn rodin_photo_request_on_main(activity: *mut ANativeActivity) -> bool {
-    let Some((vm, object_raw, sdk)) = rodin_photo_vm_and_object(activity) else {
+fn duchamp_photo_request_on_main(activity: *mut ANativeActivity) -> bool {
+    let Some((vm, object_raw, sdk)) = duchamp_photo_vm_and_object(activity) else {
         return false;
     };
 
@@ -233,32 +233,32 @@ fn rodin_photo_request_on_main(activity: *mut ANativeActivity) -> bool {
     }
 }
 
-extern "C" fn rodin_photo_frame_callback(_frame_time_nanos: i64, _data: *mut core::ffi::c_void) {
-    RODIN_PHOTO_REQUEST_SCHEDULED.store(false, std::sync::atomic::Ordering::Release);
+extern "C" fn duchamp_photo_frame_callback(_frame_time_nanos: i64, _data: *mut core::ffi::c_void) {
+    DUCHAMP_PHOTO_REQUEST_SCHEDULED.store(false, std::sync::atomic::Ordering::Release);
 
-    if !RODIN_PHOTO_REQUEST_PENDING.swap(false, std::sync::atomic::Ordering::AcqRel) {
+    if !DUCHAMP_PHOTO_REQUEST_PENDING.swap(false, std::sync::atomic::Ordering::AcqRel) {
         return;
     }
 
     let activity =
-        RODIN_PHOTO_ACTIVITY.load(std::sync::atomic::Ordering::Acquire) as *mut ANativeActivity;
+        DUCHAMP_PHOTO_ACTIVITY.load(std::sync::atomic::Ordering::Acquire) as *mut ANativeActivity;
 
     if !activity.is_null() {
-        let _ = rodin_photo_request_on_main(activity);
+        let _ = duchamp_photo_request_on_main(activity);
     }
 }
 
-fn rodin_photo_schedule_request() -> bool {
-    let choreographer = RODIN_PHOTO_CHOREOGRAPHER.load(std::sync::atomic::Ordering::Acquire)
+fn duchamp_photo_schedule_request() -> bool {
+    let choreographer = DUCHAMP_PHOTO_CHOREOGRAPHER.load(std::sync::atomic::Ordering::Acquire)
         as *mut core::ffi::c_void;
 
     if choreographer.is_null() {
         return false;
     }
 
-    RODIN_PHOTO_REQUEST_PENDING.store(true, std::sync::atomic::Ordering::Release);
+    DUCHAMP_PHOTO_REQUEST_PENDING.store(true, std::sync::atomic::Ordering::Release);
 
-    if RODIN_PHOTO_REQUEST_SCHEDULED
+    if DUCHAMP_PHOTO_REQUEST_SCHEDULED
         .compare_exchange(
             false,
             true,
@@ -273,7 +273,7 @@ fn rodin_photo_schedule_request() -> bool {
     unsafe {
         AChoreographer_postFrameCallback64(
             choreographer as *mut AChoreographer,
-            rodin_photo_frame_callback,
+            duchamp_photo_frame_callback,
             core::ptr::null_mut(),
         );
     }
@@ -281,53 +281,53 @@ fn rodin_photo_schedule_request() -> bool {
     true
 }
 
-fn rodin_photo_init(activity: *mut ANativeActivity) {
+fn duchamp_photo_init(activity: *mut ANativeActivity) {
     if activity.is_null() {
         return;
     }
 
-    RODIN_PHOTO_ACTIVITY.store(activity as usize, std::sync::atomic::Ordering::Release);
+    DUCHAMP_PHOTO_ACTIVITY.store(activity as usize, std::sync::atomic::Ordering::Release);
 
     let choreographer = unsafe { AChoreographer_getInstance() };
 
-    RODIN_PHOTO_CHOREOGRAPHER.store(choreographer as usize, std::sync::atomic::Ordering::Release);
+    DUCHAMP_PHOTO_CHOREOGRAPHER.store(choreographer as usize, std::sync::atomic::Ordering::Release);
 
-    rodin_photo_refresh_permission(activity);
+    duchamp_photo_refresh_permission(activity);
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_host_photo_permission_state() -> i32 {
-    RODIN_PHOTO_PERMISSION_STATE.load(std::sync::atomic::Ordering::Acquire)
+pub extern "C" fn duchamp_host_photo_permission_state() -> i32 {
+    DUCHAMP_PHOTO_PERMISSION_STATE.load(std::sync::atomic::Ordering::Acquire)
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_host_request_photo_permission() -> i32 {
-    if rodin_photo_schedule_request() { 1 } else { 0 }
+pub extern "C" fn duchamp_host_request_photo_permission() -> i32 {
+    if duchamp_photo_schedule_request() { 1 } else { 0 }
 }
 // Dart only posts a semantic integer. JNI work is deferred to the
 // NativeActivity main AChoreographer and never runs on Flutter's UI thread.
-static RODIN_HAPTIC_ACTIVITY: std::sync::atomic::AtomicUsize =
+static DUCHAMP_HAPTIC_ACTIVITY: std::sync::atomic::AtomicUsize =
     std::sync::atomic::AtomicUsize::new(0);
-static RODIN_HAPTIC_CHOREOGRAPHER: std::sync::atomic::AtomicUsize =
+static DUCHAMP_HAPTIC_CHOREOGRAPHER: std::sync::atomic::AtomicUsize =
     std::sync::atomic::AtomicUsize::new(0);
-static RODIN_HAPTIC_PENDING: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
-static RODIN_HAPTIC_SCHEDULED: std::sync::atomic::AtomicBool =
+static DUCHAMP_HAPTIC_PENDING: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
+static DUCHAMP_HAPTIC_SCHEDULED: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 
 #[link(name = "android")]
 unsafe extern "C" {
     #[link_name = "AChoreographer_getInstance"]
-    fn rodin_haptic_choreographer_get_instance() -> *mut AChoreographer;
+    fn duchamp_haptic_choreographer_get_instance() -> *mut AChoreographer;
 
     #[link_name = "AChoreographer_postFrameCallback64"]
-    fn rodin_haptic_post_frame_callback64(
+    fn duchamp_haptic_post_frame_callback64(
         choreographer: *mut AChoreographer,
         callback: unsafe extern "C" fn(i64, *mut c_void),
         data: *mut c_void,
     );
 }
 
-fn rodin_haptic_constant(kind: i32, sdk: i32) -> i32 {
+fn duchamp_haptic_constant(kind: i32, sdk: i32) -> i32 {
     match kind {
         1 => 1, // VIRTUAL_KEY
         2 => 6, // CONTEXT_CLICK
@@ -384,9 +384,9 @@ fn rodin_haptic_constant(kind: i32, sdk: i32) -> i32 {
     }
 }
 
-fn rodin_haptic_perform_on_main(kind: i32) -> bool {
+fn duchamp_haptic_perform_on_main(kind: i32) -> bool {
     let activity_ptr =
-        RODIN_HAPTIC_ACTIVITY.load(std::sync::atomic::Ordering::Acquire) as *mut ANativeActivity;
+        DUCHAMP_HAPTIC_ACTIVITY.load(std::sync::atomic::Ordering::Acquire) as *mut ANativeActivity;
 
     if activity_ptr.is_null() {
         return false;
@@ -414,7 +414,7 @@ fn rodin_haptic_perform_on_main(kind: i32) -> bool {
         Err(_) => return false,
     };
 
-    let constant = rodin_haptic_constant(kind, sdk);
+    let constant = duchamp_haptic_constant(kind, sdk);
 
     let result: jni::errors::Result<bool> = env.with_local_frame(8, |env| {
         let activity = unsafe { jni::objects::JObject::from_raw(activity_raw) };
@@ -445,29 +445,29 @@ fn rodin_haptic_perform_on_main(kind: i32) -> bool {
     }
 }
 
-extern "C" fn rodin_haptic_frame_callback(_frame_time_nanos: i64, _data: *mut core::ffi::c_void) {
-    RODIN_HAPTIC_SCHEDULED.store(false, std::sync::atomic::Ordering::Release);
+extern "C" fn duchamp_haptic_frame_callback(_frame_time_nanos: i64, _data: *mut core::ffi::c_void) {
+    DUCHAMP_HAPTIC_SCHEDULED.store(false, std::sync::atomic::Ordering::Release);
 
-    let kind = RODIN_HAPTIC_PENDING.swap(0, std::sync::atomic::Ordering::AcqRel);
+    let kind = DUCHAMP_HAPTIC_PENDING.swap(0, std::sync::atomic::Ordering::AcqRel);
 
     if kind != 0 {
-        let _ = rodin_haptic_perform_on_main(kind);
+        let _ = duchamp_haptic_perform_on_main(kind);
     }
 
-    if RODIN_HAPTIC_PENDING.load(std::sync::atomic::Ordering::Acquire) != 0 {
-        let _ = rodin_host_haptic_schedule();
+    if DUCHAMP_HAPTIC_PENDING.load(std::sync::atomic::Ordering::Acquire) != 0 {
+        let _ = duchamp_host_haptic_schedule();
     }
 }
 
-fn rodin_host_haptic_schedule() -> bool {
-    let choreographer = RODIN_HAPTIC_CHOREOGRAPHER.load(std::sync::atomic::Ordering::Acquire)
+fn duchamp_host_haptic_schedule() -> bool {
+    let choreographer = DUCHAMP_HAPTIC_CHOREOGRAPHER.load(std::sync::atomic::Ordering::Acquire)
         as *mut core::ffi::c_void;
 
     if choreographer.is_null() {
         return false;
     }
 
-    if RODIN_HAPTIC_SCHEDULED
+    if DUCHAMP_HAPTIC_SCHEDULED
         .compare_exchange(
             false,
             true,
@@ -480,9 +480,9 @@ fn rodin_host_haptic_schedule() -> bool {
     }
 
     unsafe {
-        rodin_haptic_post_frame_callback64(
+        duchamp_haptic_post_frame_callback64(
             choreographer as *mut AChoreographer,
-            rodin_haptic_frame_callback,
+            duchamp_haptic_frame_callback,
             core::ptr::null_mut(),
         );
     }
@@ -490,36 +490,36 @@ fn rodin_host_haptic_schedule() -> bool {
     true
 }
 
-fn rodin_haptic_init(activity: *mut ANativeActivity) {
+fn duchamp_haptic_init(activity: *mut ANativeActivity) {
     if activity.is_null() {
         return;
     }
 
-    RODIN_HAPTIC_ACTIVITY.store(activity as usize, std::sync::atomic::Ordering::Release);
+    DUCHAMP_HAPTIC_ACTIVITY.store(activity as usize, std::sync::atomic::Ordering::Release);
 
-    let choreographer = unsafe { rodin_haptic_choreographer_get_instance() };
-    RODIN_HAPTIC_CHOREOGRAPHER.store(choreographer as usize, std::sync::atomic::Ordering::Release);
+    let choreographer = unsafe { duchamp_haptic_choreographer_get_instance() };
+    DUCHAMP_HAPTIC_CHOREOGRAPHER.store(choreographer as usize, std::sync::atomic::Ordering::Release);
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_host_haptic(kind: i32) -> i32 {
+pub extern "C" fn duchamp_host_haptic(kind: i32) -> i32 {
     if !(1..=9).contains(&kind) {
         return 0;
     }
 
-    if RODIN_HAPTIC_ACTIVITY.load(std::sync::atomic::Ordering::Acquire) == 0 {
+    if DUCHAMP_HAPTIC_ACTIVITY.load(std::sync::atomic::Ordering::Acquire) == 0 {
         return 0;
     }
 
     // Coalesce bursts to one semantic feedback request per Android frame.
-    RODIN_HAPTIC_PENDING.store(kind, std::sync::atomic::Ordering::Release);
-    if rodin_host_haptic_schedule() { 1 } else { 0 }
+    DUCHAMP_HAPTIC_PENDING.store(kind, std::sync::atomic::Ordering::Release);
+    if duchamp_host_haptic_schedule() { 1 } else { 0 }
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_host_haptic_ready() -> i32 {
-    if RODIN_HAPTIC_ACTIVITY.load(std::sync::atomic::Ordering::Acquire) != 0
-        && RODIN_HAPTIC_CHOREOGRAPHER.load(std::sync::atomic::Ordering::Acquire) != 0
+pub extern "C" fn duchamp_host_haptic_ready() -> i32 {
+    if DUCHAMP_HAPTIC_ACTIVITY.load(std::sync::atomic::Ordering::Acquire) != 0
+        && DUCHAMP_HAPTIC_CHOREOGRAPHER.load(std::sync::atomic::Ordering::Acquire) != 0
     {
         1
     } else {
@@ -527,18 +527,18 @@ pub extern "C" fn rodin_host_haptic_ready() -> i32 {
     }
 }
 
-pub fn rodin_host_open_url_jni(code: i32) -> bool {
+pub fn duchamp_host_open_url_jni(code: i32) -> bool {
     let url = match code {
         0 => "https://github.com/NEESCHAL-3",
-        1 => "https://t.me/PocoX7ProNepalChat",
+        1 => "https://t.me/saan_os_discussion",
         _ => return false,
     };
 
     let activity_ptr =
-        RODIN_HAPTIC_ACTIVITY.load(std::sync::atomic::Ordering::Acquire) as *mut ANativeActivity;
+        DUCHAMP_HAPTIC_ACTIVITY.load(std::sync::atomic::Ordering::Acquire) as *mut ANativeActivity;
 
     if activity_ptr.is_null() {
-        eprintln!("RODIN_OPEN_URL activity_ptr is null");
+        eprintln!("DUCHAMP_OPEN_URL activity_ptr is null");
         return false;
     }
 
@@ -550,14 +550,14 @@ pub fn rodin_host_open_url_jni(code: i32) -> bool {
     };
 
     if vm_raw.is_null() || activity_raw.is_null() {
-        eprintln!("RODIN_OPEN_URL vm or activity is null");
+        eprintln!("DUCHAMP_OPEN_URL vm or activity is null");
         return false;
     }
 
     let vm = match unsafe { jni::JavaVM::from_raw(vm_raw) } {
         Ok(vm) => vm,
         Err(e) => {
-            eprintln!("RODIN_OPEN_URL JavaVM::from_raw error {e:?}");
+            eprintln!("DUCHAMP_OPEN_URL JavaVM::from_raw error {e:?}");
             return false;
         }
     };
@@ -565,7 +565,7 @@ pub fn rodin_host_open_url_jni(code: i32) -> bool {
     let mut env = match vm.attach_current_thread() {
         Ok(env) => env,
         Err(e) => {
-            eprintln!("RODIN_OPEN_URL attach_current_thread error {e:?}");
+            eprintln!("DUCHAMP_OPEN_URL attach_current_thread error {e:?}");
             return false;
         }
     };
@@ -611,57 +611,57 @@ pub fn rodin_host_open_url_jni(code: i32) -> bool {
 
     match result {
         Ok(true) => {
-            eprintln!("RODIN_OPEN_URL launched {url}");
+            eprintln!("DUCHAMP_OPEN_URL launched {url}");
             true
         }
         Ok(false) => false,
         Err(e) => {
-            eprintln!("RODIN_OPEN_URL JNI error {e:?}");
+            eprintln!("DUCHAMP_OPEN_URL JNI error {e:?}");
             false
         }
     }
 }
-static RODIN_BACK_INTERCEPT: std::sync::atomic::AtomicBool =
+static DUCHAMP_BACK_INTERCEPT: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
-static RODIN_BACK_PENDING: std::sync::atomic::AtomicBool =
+static DUCHAMP_BACK_PENDING: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 
 #[link(name = "android")]
 unsafe extern "C" {
     #[link_name = "AInputEvent_getType"]
-    fn rodin_input_event_get_type(event: *const AInputEvent) -> i32;
+    fn duchamp_input_event_get_type(event: *const AInputEvent) -> i32;
 
     #[link_name = "AKeyEvent_getAction"]
-    fn rodin_key_event_get_action(event: *const AInputEvent) -> i32;
+    fn duchamp_key_event_get_action(event: *const AInputEvent) -> i32;
 
     #[link_name = "AKeyEvent_getKeyCode"]
-    fn rodin_key_event_get_key_code(event: *const AInputEvent) -> i32;
+    fn duchamp_key_event_get_key_code(event: *const AInputEvent) -> i32;
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_host_set_back_intercept(enabled: i32) -> i32 {
+pub extern "C" fn duchamp_host_set_back_intercept(enabled: i32) -> i32 {
     let value = enabled != 0;
-    let previous = RODIN_BACK_INTERCEPT.swap(value, std::sync::atomic::Ordering::AcqRel);
+    let previous = DUCHAMP_BACK_INTERCEPT.swap(value, std::sync::atomic::Ordering::AcqRel);
     if previous != value { platform_bridge::refresh_back(); }
 
     if !value {
-        RODIN_BACK_PENDING.store(false, std::sync::atomic::Ordering::Release);
+        DUCHAMP_BACK_PENDING.store(false, std::sync::atomic::Ordering::Release);
     }
 
     1
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_host_consume_back_request() -> i32 {
-    if RODIN_BACK_PENDING.swap(false, std::sync::atomic::Ordering::AcqRel) {
+pub extern "C" fn duchamp_host_consume_back_request() -> i32 {
+    if DUCHAMP_BACK_PENDING.swap(false, std::sync::atomic::Ordering::AcqRel) {
         1
     } else {
         0
     }
 }
 
-fn rodin_back_finish_handled(event: *const core::ffi::c_void, original_handled: i32) -> i32 {
-    if event.is_null() || !RODIN_BACK_INTERCEPT.load(std::sync::atomic::Ordering::Acquire) {
+fn duchamp_back_finish_handled(event: *const core::ffi::c_void, original_handled: i32) -> i32 {
+    if event.is_null() || !DUCHAMP_BACK_INTERCEPT.load(std::sync::atomic::Ordering::Acquire) {
         return original_handled;
     }
 
@@ -669,22 +669,22 @@ fn rodin_back_finish_handled(event: *const core::ffi::c_void, original_handled: 
     const AKEYCODE_BACK: i32 = 4;
     const AKEY_EVENT_ACTION_UP: i32 = 1;
 
-    let event_type = unsafe { rodin_input_event_get_type(event as *const AInputEvent) };
+    let event_type = unsafe { duchamp_input_event_get_type(event as *const AInputEvent) };
     if event_type != AINPUT_EVENT_TYPE_KEY {
         return original_handled;
     }
 
-    let key_code = unsafe { rodin_key_event_get_key_code(event as *const AInputEvent) };
+    let key_code = unsafe { duchamp_key_event_get_key_code(event as *const AInputEvent) };
     if key_code != AKEYCODE_BACK {
         return original_handled;
     }
 
-    let action = unsafe { rodin_key_event_get_action(event as *const AInputEvent) };
+    let action = unsafe { duchamp_key_event_get_action(event as *const AInputEvent) };
     if action == AKEY_EVENT_ACTION_UP {
-        RODIN_BACK_PENDING.store(true, std::sync::atomic::Ordering::Release);
+        DUCHAMP_BACK_PENDING.store(true, std::sync::atomic::Ordering::Release);
     }
 
-    // Consume DOWN + UP only while Rodin has an internal page to go back to.
+    // Consume DOWN + UP only while Duchamp has an internal page to go back to.
     1
 }
 
@@ -1098,7 +1098,7 @@ unsafe extern "C" {
 }
 
 fn log_str(message: &str) {
-    static TAG: &[u8] = b"RodinEssential\0";
+    static TAG: &[u8] = b"DuchampEssential\0";
 
     let clean = message.replace('\0', " ");
     if let Ok(text) = CString::new(clean) {
@@ -1275,7 +1275,7 @@ fn prepare_runtime_files(
         return Err("NativeActivity paths/assets unavailable".to_string());
     }
 
-    let base = PathBuf::from(c_string(internal)).join("rodin_flutter");
+    let base = PathBuf::from(c_string(internal)).join("duchamp_flutter");
     let assets_dir = base.join("flutter_assets");
     let cache_dir = base.join("cache");
     let icu_path = base.join("icudtl.dat");
@@ -1286,7 +1286,7 @@ fn prepare_runtime_files(
 
     let index = String::from_utf8(read_asset(manager, "flutter_assets.index")?)
         .map_err(|e| format!("flutter_assets.index UTF-8: {e}"))?;
-    let packaged_stamp = read_asset(manager, "rodin_runtime.stamp")?;
+    let packaged_stamp = read_asset(manager, "duchamp_runtime.stamp")?;
     let required_assets: Vec<&str> = index
         .lines()
         .map(str::trim)
@@ -1562,7 +1562,7 @@ fn input_worker_main(
                 AInputQueue_finishEvent(
                     queue,
                     event,
-                    rodin_back_finish_handled((event) as *const core::ffi::c_void, handled),
+                    duchamp_back_finish_handled((event) as *const core::ffi::c_void, handled),
                 );
             }
         }
@@ -2537,7 +2537,7 @@ unsafe fn start_flutter(
         flutter_log_callback as *const () as usize,
     );
 
-    static DART_LOG_TAG: &[u8] = b"RodinDart\0";
+    static DART_LOG_TAG: &[u8] = b"DuchampDart\0";
     put_usize(
         &mut project,
         OFF_PROJECT_LOG_TAG,
@@ -2554,7 +2554,7 @@ unsafe fn start_flutter(
 
     // The production renderer uses the proven EGL/OpenGL/Skia path. Impeller
     // remains disabled until its custom-embedder lifecycle is validated here.
-    static EXECUTABLE_NAME: &[u8] = b"rodin_essential\0";
+    static EXECUTABLE_NAME: &[u8] = b"duchamp_essential\0";
     static ENABLE_IMPELLER: &[u8] = b"--enable-impeller=false\0";
 
     let command_line_args: [*const c_char; 2] = [
@@ -2631,8 +2631,8 @@ unsafe fn start_flutter(
     Ok(())
 }
 
-fn rodin_android_user_settings(activity: *mut ANativeActivity) -> (f64, bool, i32) {
-    let Some((vm, object_raw, _)) = rodin_photo_vm_and_object(activity) else {
+fn duchamp_android_user_settings(activity: *mut ANativeActivity) -> (f64, bool, i32) {
+    let Some((vm, object_raw, _)) = duchamp_photo_vm_and_object(activity) else {
         return (1.0, false, 0);
     };
 
@@ -2710,7 +2710,7 @@ unsafe fn send_flutter_settings(activity: *mut ANativeActivity, state: *mut Host
 
     static CHANNEL: &[u8] = b"flutter/settings\0";
 
-    let (text_scale, use_24_hour, ui_mode) = rodin_android_user_settings(activity);
+    let (text_scale, use_24_hour, ui_mode) = duchamp_android_user_settings(activity);
 
     const UI_MODE_NIGHT_MASK: i32 = 0x30;
     const UI_MODE_NIGHT_YES: i32 = 0x20;
@@ -2867,7 +2867,7 @@ unsafe extern "C" fn on_start(_: *mut ANativeActivity) {
 }
 
 unsafe extern "C" fn on_resume(activity: *mut ANativeActivity) {
-    rodin_photo_refresh_permission(activity);
+    duchamp_photo_refresh_permission(activity);
     log_str("onResume");
 
     if activity.is_null() {
@@ -3131,11 +3131,11 @@ pub unsafe extern "C" fn ANativeActivity_onCreate(
 
     // Connect in parallel with EGL and Flutter initialization. The daemon is
     // independent of this Activity; reopening only reconnects its client.
-    backend_bridge::rodin_backend_start();
+    backend_bridge::duchamp_backend_start();
     platform_bridge::init(activity);
-    rodin_prepare_launch_window(activity);
-    rodin_photo_init(activity);
-    rodin_haptic_init(activity);
+    duchamp_prepare_launch_window(activity);
+    duchamp_photo_init(activity);
+    duchamp_haptic_init(activity);
     log_str("ANativeActivity_onCreate");
 
     let callbacks = unsafe { (*activity).callbacks };

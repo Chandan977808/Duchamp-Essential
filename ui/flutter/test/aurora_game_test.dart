@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rodin_essential_ui/aurora_game_engine.dart';
+import 'package:duchamp_essential_ui/aurora_game_engine.dart';
 
 void main() {
   test('collecting stars builds real score and combos', () {

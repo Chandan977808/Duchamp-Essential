@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rodin_essential_ui/hub_headline.dart';
-import 'package:rodin_essential_ui/page_motion.dart';
+import 'package:duchamp_essential_ui/hub_headline.dart';
+import 'package:duchamp_essential_ui/page_motion.dart';
 
 void main() {
   Widget page({
@@ -24,7 +24,7 @@ void main() {
             width: 280,
             child: TickerMode(
               enabled: !hidden,
-              child: RodinMotionViewportScope(
+              child: DuchampMotionViewportScope(
                 inFlight: moving,
                 child: const HubHeadline(),
               ),

@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 /// App-local soft-light response, not a dependency on an OEM glass engine.
 /// Position changes notify only the painter; there is no shader compilation,
 /// extra backdrop blur, saveLayer, or perpetual animation during a hold.
-class RodinTouchLight extends StatefulWidget {
-  const RodinTouchLight({
+class DuchampTouchLight extends StatefulWidget {
+  const DuchampTouchLight({
     required this.child,
     required this.accent,
     this.radius = 22,
@@ -18,10 +18,10 @@ class RodinTouchLight extends StatefulWidget {
   final bool enabled;
 
   @override
-  State<RodinTouchLight> createState() => RodinTouchLightState();
+  State<DuchampTouchLight> createState() => DuchampTouchLightState();
 }
 
-class RodinTouchLightState extends State<RodinTouchLight>
+class DuchampTouchLightState extends State<DuchampTouchLight>
     with SingleTickerProviderStateMixin {
   final ValueNotifier<Offset> _point = ValueNotifier<Offset>(Offset.zero);
   late final AnimationController _strength;
@@ -51,7 +51,7 @@ class RodinTouchLightState extends State<RodinTouchLight>
   }
 
   @override
-  void didUpdateWidget(RodinTouchLight oldWidget) {
+  void didUpdateWidget(DuchampTouchLight oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!widget.enabled) cancel();
   }
@@ -113,7 +113,7 @@ class RodinTouchLightState extends State<RodinTouchLight>
               child: ExcludeSemantics(
                 child: RepaintBoundary(
                   child: CustomPaint(
-                    foregroundPainter: RodinTouchLightPainter(
+                    foregroundPainter: DuchampTouchLightPainter(
                       repaint: _paint,
                       point: _point,
                       strength: _strength,
@@ -132,8 +132,8 @@ class RodinTouchLightState extends State<RodinTouchLight>
   }
 }
 
-class RodinTouchLightPainter extends CustomPainter {
-  RodinTouchLightPainter({
+class DuchampTouchLightPainter extends CustomPainter {
+  DuchampTouchLightPainter({
     required super.repaint,
     required this.point,
     required this.strength,
@@ -200,7 +200,7 @@ class RodinTouchLightPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(RodinTouchLightPainter oldDelegate) =>
+  bool shouldRepaint(DuchampTouchLightPainter oldDelegate) =>
       oldDelegate.accent != accent ||
       oldDelegate.radius != radius ||
       oldDelegate.dark != dark ||

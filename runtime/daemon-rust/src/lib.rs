@@ -19,8 +19,8 @@ mod subsystem_clocks;
 mod system_colors;
 mod touch_resampler;
 
-pub const SOCKET_NAME: &str = "rodin_essentiald_v15";
-pub const REVERSE_SOCKET_NAME: &str = "rodin_essential_app_v15";
+pub const SOCKET_NAME: &str = "duchamp_essentiald_v15";
+pub const REVERSE_SOCKET_NAME: &str = "duchamp_essential_app_v15";
 pub const PROTOCOL_VERSION: &str = "13.6";
 const LOOPBACK_PORT: u16 = 732;
 
@@ -456,8 +456,8 @@ fn package_app_id_from_packages_list(contents: &str, package: &str) -> Option<u3
 }
 
 fn configured_app_uid_policy() -> AppUidPolicy {
-    *APP_UID_POLICY.get_or_init(|| match std::env::var("RODIN_APP_UID") {
-        Err(std::env::VarError::NotPresent) => match std::env::var("RODIN_APP_PACKAGE") {
+    *APP_UID_POLICY.get_or_init(|| match std::env::var("DUCHAMP_APP_UID") {
+        Err(std::env::VarError::NotPresent) => match std::env::var("DUCHAMP_APP_PACKAGE") {
             Err(std::env::VarError::NotPresent) => AppUidPolicy::SelinuxOnly,
             Err(std::env::VarError::NotUnicode(_)) => AppUidPolicy::Reject,
             Ok(package) => fs::read_to_string("/data/system/packages.list")
@@ -608,7 +608,7 @@ fn write_verified(path: &Path, value: &str) -> Result<String, String> {
     read_trimmed(path)
 }
 
-const RODIN_MAX_FCC_UA: i64 = 22_000_000;
+const DUCHAMP_MAX_FCC_UA: i64 = 22_000_000;
 const BYPASS_CHARGING_PATHS: [&str; 2] = [
     "/sys/class/power_supply/battery/bypass_charging",
     "/sys/class/power_supply/battery/bypass_charge",
@@ -759,7 +759,7 @@ fn maintain_bypass_policy() {
     if let Some(state) = state.filter(|state| state.bypass_charging == 1) {
         if let Err(error) = reconcile_bypass(true, state.bypass_threshold, false) {
             if BYPASS_POLICY_ERROR.swap(1, Ordering::AcqRel) == 0 {
-                eprintln!("RODIN_BYPASS_POLICY_FAIL {error}");
+                eprintln!("DUCHAMP_BYPASS_POLICY_FAIL {error}");
             }
         }
     }
@@ -812,7 +812,7 @@ fn valid_charging_profile(profile: i32) -> bool {
 fn normalize_charging_profile(profile: i32) -> i32 {
     match profile {
         // v1.18.x stored the old boost switch as 8. Preserve that intent as
-        // the full Rodin charging tier after upgrading.
+        // the full Duchamp charging tier after upgrading.
         8 => 90,
         value if valid_charging_profile(value) => value,
         _ => 0,
@@ -825,7 +825,7 @@ fn charging_profile_fcc_ua(profile: i32) -> Option<i64> {
         33 => Some(8_067_000),
         65 => Some(15_889_000),
         85 => Some(20_778_000),
-        90 => Some(RODIN_MAX_FCC_UA),
+        90 => Some(DUCHAMP_MAX_FCC_UA),
         _ => None,
     }
 }
@@ -848,14 +848,14 @@ fn apply_charging_profile(profile: i32) -> Result<(), String> {
     }
 
     let fcc_path = charging_fcc_path()
-        .ok_or_else(|| "Rodin FCC charging control is unavailable".to_string())?;
+        .ok_or_else(|| "Duchamp FCC charging control is unavailable".to_string())?;
 
     if profile == 0 {
-        // Release any Rodin Essential ceiling once, then return ownership to
+        // Release any Duchamp Essential ceiling once, then return ownership to
         // the ROM and charger controller. This does not touch thermal_remove,
         // JEITA, OVP/OCP, or any charger-IC emergency protection.
         let _ = write_charging_if_present(&charging_path(), "0")?;
-        let _ = write_verified(&fcc_path, &RODIN_MAX_FCC_UA.to_string())?;
+        let _ = write_verified(&fcc_path, &DUCHAMP_MAX_FCC_UA.to_string())?;
         CHARGING_LAST_USB_ONLINE.store(
             usb("online").parse::<i32>().unwrap_or(-1),
             Ordering::Release,
@@ -1286,9 +1286,9 @@ fn set_cpu_governor(policy: i32, governor: &str) -> Result<(), String> {
 
 fn cpu_policy_default_range(policy: i32) -> Option<(i32, i32)> {
     match policy {
-        0 => Some((300, 2100)),
-        4 => Some((400, 3000)),
-        7 => Some((1000, 3250)),
+        0 => Some((480, 2200)),
+        4 => Some((400, 3200)),
+        7 => Some((400, 3350)),
         _ => None,
     }
 }
@@ -1609,7 +1609,7 @@ fn apply_cluster_freq_controls_unlocked(
     };
 
     let write_vendor_constraints = || {
-        // Xiaomi's live Rodin thermal daemon writes this request directly.
+        // Xiaomi's live Duchamp thermal daemon writes this request directly.
         // Updating the same per-policy request prevents its ceiling from
         // silently clamping a user-selected range below the requested OPP.
         write_optional_cpu_control(
@@ -1618,7 +1618,7 @@ fn apply_cluster_freq_controls_unlocked(
             "MI thermal CPU limit",
         )?;
 
-        // MT6899 accepts one policy leader plus its minimum and maximum in
+        // MT6897 accepts one policy leader plus its minimum and maximum in
         // kHz. This updates only the selected policy; it does not replace the
         // frequency table for either of the other CPU clusters.
         write_optional_cpu_control(
@@ -1645,7 +1645,7 @@ fn apply_cluster_freq_controls_unlocked(
             write_min()?;
         }
 
-        // cpufreq writes are synchronous on Rodin, but a short bounded retry
+        // cpufreq writes are synchronous on Duchamp, but a short bounded retry
         // also handles vendor policy activity occurring in the same instant.
         std::thread::sleep(Duration::from_millis(if attempt == 0 { 5 } else { 20 }));
         actual_min = read_cpu_cluster_limit(policy, "scaling_min_freq")?;
@@ -1883,21 +1883,21 @@ fn write_beast_gpu_constraints() {
     let _ = service_control::write("/sys/module/ged/parameters/ged_smart_boost", "1");
     let _ = service_control::write("/sys/kernel/ged/hal/custom_upbound_gpu_freq", "0");
     let _ = service_control::write("/sys/kernel/ged/hal/custom_boost_gpu_freq", "0");
-    let _ = service_control::write("/sys/module/ged/parameters/gpu_bottom_freq", "1300000");
-    let _ = service_control::write("/sys/module/ged/parameters/gpu_cust_boost_freq", "1300000");
+    let _ = service_control::write("/sys/module/ged/parameters/gpu_bottom_freq", "1400000");
+    let _ = service_control::write("/sys/module/ged/parameters/gpu_cust_boost_freq", "1400000");
     let _ = service_control::write(
         "/sys/module/ged/parameters/gpu_cust_upbound_freq",
-        "1300000",
+        "1400000",
     );
     let _ = gpu_write_file(
         "/sys/class/devfreq/13000000.mali/max_freq",
         "/sys/class/misc/mali0/device/devfreq/13000000.mali/max_freq",
-        "1300000000",
+        "1400000000",
     );
     let _ = gpu_write_file(
         "/sys/class/devfreq/13000000.mali/min_freq",
         "/sys/class/misc/mali0/device/devfreq/13000000.mali/min_freq",
-        "1300000000",
+        "1400000000",
     );
     let _ = gpu_write_file(
         "/sys/class/devfreq/13000000.mali/governor",
@@ -1909,20 +1909,20 @@ fn write_beast_gpu_constraints() {
 // Beast must never disable DVFS while the GPU is still running a previous
 // OPP. This is especially important during boot: the MediaTek power service
 // can publish its stock OPP 40 target after sys.boot_completed, and freezing
-// DVFS at that point leaves the GPU stuck below 1300 MHz until the UI submits
+// DVFS at that point leaves the GPU stuck below 1400 MHz until the UI submits
 // another profile command. Keep DVFS enabled while arming OPP 0, and disable
-// it only after the live GED frequency confirms 1300 MHz.
+// it only after the live GED frequency confirms 1400 MHz.
 fn arm_or_lock_beast_gpu() -> bool {
     write_beast_gpu_constraints();
 
-    if gpu_get_cur_freq_mhz() != 1300 {
+    if gpu_get_cur_freq_mhz() != 1400 {
         let _ = service_control::write("/sys/module/ged/parameters/gpu_dvfs_enable", "1");
         let _ = service_control::write("/sys/kernel/ged/hal/custom_boost_gpu_freq", "0");
         return false;
     }
 
     let _ = service_control::write("/sys/module/ged/parameters/gpu_dvfs_enable", "0");
-    gpu_get_cur_freq_mhz() == 1300 && gpu_get_dvfs_enabled() == 0
+    gpu_get_cur_freq_mhz() == 1400 && gpu_get_dvfs_enabled() == 0
 }
 
 fn settle_beast_gpu_lock(attempts: usize, delay: Duration) -> bool {
@@ -1949,7 +1949,7 @@ pub fn enforce_performance_profile(profile: i32) -> bool {
 
     match profile {
         3 => {
-            // Extreme Beast: fixed 1300 MHz OPP with the GPU cooling cap
+            // Extreme Beast: fixed 1400 MHz OPP with the GPU cooling cap
             // explicitly disabled for this unrestricted profile.
             let _ = settle_beast_gpu_lock(60, Duration::from_millis(25));
         }
@@ -1960,12 +1960,12 @@ pub fn enforce_performance_profile(profile: i32) -> bool {
             let _ = gpu_write_file(
                 "/sys/class/devfreq/13000000.mali/max_freq",
                 "/sys/class/misc/mali0/device/devfreq/13000000.mali/max_freq",
-                "1300000000",
+                "1400000000",
             );
             let _ = gpu_write_file(
                 "/sys/class/devfreq/13000000.mali/min_freq",
                 "/sys/class/misc/mali0/device/devfreq/13000000.mali/min_freq",
-                "260000000",
+                "265000000",
             );
             let _ = gpu_write_file(
                 "/sys/class/devfreq/13000000.mali/governor",
@@ -1974,12 +1974,12 @@ pub fn enforce_performance_profile(profile: i32) -> bool {
             );
             let _ = service_control::write("/sys/kernel/ged/hal/custom_boost_gpu_freq", "40");
             let _ = service_control::write("/sys/kernel/ged/hal/custom_upbound_gpu_freq", "0");
-            let _ = service_control::write("/sys/module/ged/parameters/gpu_bottom_freq", "260000");
+            let _ = service_control::write("/sys/module/ged/parameters/gpu_bottom_freq", "265000");
             let _ =
-                service_control::write("/sys/module/ged/parameters/gpu_cust_boost_freq", "260000");
+                service_control::write("/sys/module/ged/parameters/gpu_cust_boost_freq", "265000");
             let _ = service_control::write(
                 "/sys/module/ged/parameters/gpu_cust_upbound_freq",
-                "1300000",
+                "1400000",
             );
             let _ =
                 service_control::write("/sys/class/misc/mali0/device/power_policy", "always_on");
@@ -1989,17 +1989,17 @@ pub fn enforce_performance_profile(profile: i32) -> bool {
             let _ = service_control::write("/sys/module/ged/parameters/ged_smart_boost", "1");
         }
         2 => {
-            // Battery Saver: lowest governor with a 598 MHz hard ceiling.
+            // Battery Saver: lowest governor with a 601 MHz hard ceiling.
             let _ = service_control::write("/sys/module/ged/parameters/gpu_dvfs_enable", "1");
             let _ = gpu_write_file(
                 "/sys/class/devfreq/13000000.mali/min_freq",
                 "/sys/class/misc/mali0/device/devfreq/13000000.mali/min_freq",
-                "260000000",
+                "265000000",
             );
             let _ = gpu_write_file(
                 "/sys/class/devfreq/13000000.mali/max_freq",
                 "/sys/class/misc/mali0/device/devfreq/13000000.mali/max_freq",
-                "598000000",
+                "601000000",
             );
             let _ = gpu_write_file(
                 "/sys/class/devfreq/13000000.mali/governor",
@@ -2008,12 +2008,12 @@ pub fn enforce_performance_profile(profile: i32) -> bool {
             );
             let _ = service_control::write("/sys/kernel/ged/hal/custom_boost_gpu_freq", "40");
             let _ = service_control::write("/sys/kernel/ged/hal/custom_upbound_gpu_freq", "27");
-            let _ = service_control::write("/sys/module/ged/parameters/gpu_bottom_freq", "260000");
+            let _ = service_control::write("/sys/module/ged/parameters/gpu_bottom_freq", "265000");
             let _ =
-                service_control::write("/sys/module/ged/parameters/gpu_cust_boost_freq", "260000");
+                service_control::write("/sys/module/ged/parameters/gpu_cust_boost_freq", "265000");
             let _ = service_control::write(
                 "/sys/module/ged/parameters/gpu_cust_upbound_freq",
-                "598000",
+                "601000",
             );
             let _ = service_control::write(
                 "/sys/class/misc/mali0/device/power_policy",
@@ -2025,18 +2025,18 @@ pub fn enforce_performance_profile(profile: i32) -> bool {
             let _ = service_control::write("/sys/module/ged/parameters/ged_smart_boost", "0");
         }
         _ => {
-            // Stock Balanced hands DVFS back to the MediaTek power HAL. Rodin's
+            // Stock Balanced hands DVFS back to the MediaTek power HAL. Duchamp's
             // stock governor is `dummy`; the vendor service then owns live caps.
             let _ = service_control::write("/sys/module/ged/parameters/gpu_dvfs_enable", "1");
             let _ = gpu_write_file(
                 "/sys/class/devfreq/13000000.mali/max_freq",
                 "/sys/class/misc/mali0/device/devfreq/13000000.mali/max_freq",
-                "1300000000",
+                "1400000000",
             );
             let _ = gpu_write_file(
                 "/sys/class/devfreq/13000000.mali/min_freq",
                 "/sys/class/misc/mali0/device/devfreq/13000000.mali/min_freq",
-                "260000000",
+                "265000000",
             );
             let _ = gpu_write_file(
                 "/sys/class/devfreq/13000000.mali/governor",
@@ -2045,12 +2045,12 @@ pub fn enforce_performance_profile(profile: i32) -> bool {
             );
             let _ = service_control::write("/sys/kernel/ged/hal/custom_boost_gpu_freq", "40");
             let _ = service_control::write("/sys/kernel/ged/hal/custom_upbound_gpu_freq", "0");
-            let _ = service_control::write("/sys/module/ged/parameters/gpu_bottom_freq", "260000");
+            let _ = service_control::write("/sys/module/ged/parameters/gpu_bottom_freq", "265000");
             let _ =
-                service_control::write("/sys/module/ged/parameters/gpu_cust_boost_freq", "260000");
+                service_control::write("/sys/module/ged/parameters/gpu_cust_boost_freq", "265000");
             let _ = service_control::write(
                 "/sys/module/ged/parameters/gpu_cust_upbound_freq",
-                "1300000",
+                "1400000",
             );
             let _ = service_control::write(
                 "/sys/class/misc/mali0/device/power_policy",
@@ -2086,8 +2086,8 @@ pub fn apply_performance_profile(profile: i32) -> Result<(), String> {
         3 => mutate_persisted_state(|state| {
             state.perf = 3;
             state.gpu_uncap = 1;
-            state.gpu_min_freq_mhz = 1300;
-            state.gpu_max_freq_mhz = 1300;
+            state.gpu_min_freq_mhz = 1400;
+            state.gpu_max_freq_mhz = 1400;
             state.gpu_ged_boost = 1;
             state.gpu = "performance".to_string();
             state.gpu_governor = "performance".to_string();
@@ -2097,8 +2097,8 @@ pub fn apply_performance_profile(profile: i32) -> Result<(), String> {
         1 => mutate_persisted_state(|state| {
             state.perf = 1;
             state.gpu_uncap = 0;
-            state.gpu_min_freq_mhz = 260;
-            state.gpu_max_freq_mhz = 1300;
+            state.gpu_min_freq_mhz = 265;
+            state.gpu_max_freq_mhz = 1400;
             state.gpu_ged_boost = 1;
             state.gpu = "simple_ondemand".to_string();
             state.gpu_governor = "simple_ondemand".to_string();
@@ -2108,8 +2108,8 @@ pub fn apply_performance_profile(profile: i32) -> Result<(), String> {
         2 => mutate_persisted_state(|state| {
             state.perf = 2;
             state.gpu_uncap = 0;
-            state.gpu_min_freq_mhz = 260;
-            state.gpu_max_freq_mhz = 598;
+            state.gpu_min_freq_mhz = 265;
+            state.gpu_max_freq_mhz = 601;
             state.gpu_ged_boost = 0;
             state.gpu = "powersave".to_string();
             state.gpu_governor = "powersave".to_string();
@@ -2230,7 +2230,7 @@ fn read_u16_from_slice(bytes: &[u8], offset: usize) -> Option<u16> {
 }
 
 fn find_touch_thp_config_offset(bytes: &[u8]) -> Option<usize> {
-    // Both Rodin panel variants use libtouchreport_hal.so and the same THP
+    // Both Duchamp panel variants use libtouchreport_hal.so and the same THP
     // timing block. Match all three vendor timing pairs instead of relying on
     // one firmware build's absolute virtual address.
     if bytes.len() < 0x38 {
@@ -2253,7 +2253,7 @@ fn find_touch_thp_config_offset(bytes: &[u8]) -> Option<usize> {
 }
 
 fn locate_touch_thp_layout() -> Result<TouchThpLayout, String> {
-    let pid = touch_service_pid().ok_or("Rodin touch service process not found")?;
+    let pid = touch_service_pid().ok_or("Duchamp touch service process not found")?;
     let maps = fs::read_to_string(format!("/proc/{pid}/maps"))
         .map_err(|e| format!("touch service maps: {e}"))?;
     let library_base = maps
@@ -2299,7 +2299,7 @@ fn locate_touch_thp_layout() -> Result<TouchThpLayout, String> {
         }
     }
 
-    Err("Rodin THP timing block not found".into())
+    Err("Duchamp THP timing block not found".into())
 }
 
 fn read_touch_thp_rate(layout: TouchThpLayout, address: u64) -> Result<u16, String> {
@@ -2319,7 +2319,7 @@ fn read_touch_thp_rate(layout: TouchThpLayout, address: u64) -> Result<u16, Stri
 
 fn write_touch_thp_rate(rate: u16) -> Result<TouchThpLayout, String> {
     if !matches!(rate, 240 | 480) {
-        return Err(format!("unsupported Rodin THP rate {rate}"));
+        return Err(format!("unsupported Duchamp THP rate {rate}"));
     }
 
     let layout = locate_touch_thp_layout()?;
@@ -2406,14 +2406,14 @@ type TouchHalStep = (i32, i32, bool);
 
 fn touch_hal_profile_sequence(profile: i32) -> Result<&'static [TouchHalStep], String> {
     // These are Xiaomi TouchFeature HAL modes, not calls into the HyperOS
-    // Game Turbo application. The HAL lives in Rodin's vendor/ODM stack and
+    // Game Turbo application. The HAL lives in Duchamp's vendor/ODM stack and
     // abstracts both supported Goodix and FocalTech panels.
     //
     // mode 0: game mode; 1: active mode; 2-6: response calibration;
     // 7: orientation; 202: super report path; 10001-10004: vendor Super Touch.
     // Super-report commands are deliberately last so a subsequent game-mode
     // write cannot return the report pipeline to its 240 Hz base path.
-    // Native 240 and native 480 must remain separate transactions. Rodin's
+    // Native 240 and native 480 must remain separate transactions. Duchamp's
     // mode-2 value 99 is the vendor high-sensitivity latch for the 240 Hz path:
     // the HAL normalizes its public readback to 4, but omitting the latch makes
     // the panel deliver only about 135 Hz while still claiming 240 Hz. The
@@ -2514,11 +2514,11 @@ fn apply_touch_driver_fallback(profile: i32, panel: i32) -> Result<(), String> {
     }
 
     if panel != 1 {
-        return Err("Rodin TouchFeature HAL unavailable for this panel".into());
+        return Err("Duchamp TouchFeature HAL unavailable for this panel".into());
     }
 
     if !matches!(profile, 1 | 2) {
-        return Err("this touch profile requires the Rodin vendor touch HAL".into());
+        return Err("this touch profile requires the Duchamp vendor touch HAL".into());
     }
 
     let value = if profile == 1 { "0" } else { "1" };
@@ -2559,7 +2559,7 @@ fn apply_touch_profile_locked(profile: i32) -> Result<(), String> {
 
     TOUCH_APPLY_ACK.store(0, Ordering::Release);
     // Stop custom output while the Xiaomi pipeline is being reconfigured.
-    // The worker closes only Rodin's duplicated writer; the vendor service and
+    // The worker closes only Duchamp's duplicated writer; the vendor service and
     // physical touch path continue normally.
     let _ = touch_resampler::set_target_hz(0);
     let panel = touch_panel_code();
@@ -2766,8 +2766,8 @@ fn set_display_toggle(case_id: i32, enabled: bool, state: &AtomicI32) -> Result<
     Ok(())
 }
 
-const DEFAULT_STATE_DIR: &str = "/data/adb/rodin-essential";
-const STATE_DIR_ENV: &str = "RODIN_STATE_DIR";
+const DEFAULT_STATE_DIR: &str = "/data/adb/duchamp-essential";
+const STATE_DIR_ENV: &str = "DUCHAMP_STATE_DIR";
 
 static PERFORMANCE_PROFILE_SUPPORTED: AtomicI32 = AtomicI32::new(-1);
 static PERFORMANCE_PROFILE_VERIFIED: AtomicI32 = AtomicI32::new(-1);
@@ -2876,8 +2876,8 @@ impl Default for PersistedState {
             zram_size_mb: 8192,
             zram_algorithm: "lz4".to_string(),
             zram_swappiness: 100,
-            gpu_min_freq_mhz: 260,
-            gpu_max_freq_mhz: 1300,
+            gpu_min_freq_mhz: 265,
+            gpu_max_freq_mhz: 1400,
             gpu_governor: "simple_ondemand".to_string(),
             gpu_ged_boost: 0,
             gpu_uncap: 0,
@@ -2911,11 +2911,11 @@ fn legacy_gpu_profile_cpu_signature(state: &PersistedState) -> bool {
     match state.perf {
         3 => {
             governors == ("performance", "performance", "performance")
-                && ranges == (2100, 2100, 3000, 3000, 3250, 3250)
+                && ranges == (2200, 2200, 3200, 3200, 3350, 3350)
         }
         1 => {
             governors == ("schedutil", "schedutil", "schedutil")
-                && ranges == (300, 2100, 400, 3000, 1000, 3250)
+                && ranges == (480, 2200, 400, 3200, 400, 3350)
         }
         2 => {
             governors == ("schedutil", "schedutil", "schedutil")
@@ -2957,9 +2957,9 @@ fn restore_vendor_cpu_defaults() {
             let _ = set_cpu_governor(policy, "schedutil");
         }
     }
-    let _ = apply_cluster_freq_controls(0, 300, 2100);
-    let _ = apply_cluster_freq_controls(4, 400, 3000);
-    let _ = apply_cluster_freq_controls(7, 1000, 3250);
+    let _ = apply_cluster_freq_controls(0, 480, 2200);
+    let _ = apply_cluster_freq_controls(4, 400, 3200);
+    let _ = apply_cluster_freq_controls(7, 400, 3350);
 }
 
 static PERSISTED_STATE: OnceLock<Mutex<PersistedState>> = OnceLock::new();
@@ -4292,7 +4292,7 @@ fn restore_persisted_state() {
             let max = if state.cpu_max_freq0 > 0 {
                 state.cpu_max_freq0
             } else {
-                2100
+                2200
             };
             let _ = apply_cluster_freq_controls(0, min, max);
         }
@@ -4305,7 +4305,7 @@ fn restore_persisted_state() {
             let max = if state.cpu_max_freq4 > 0 {
                 state.cpu_max_freq4
             } else {
-                3000
+                3200
             };
             let _ = apply_cluster_freq_controls(4, min, max);
         }
@@ -4318,7 +4318,7 @@ fn restore_persisted_state() {
             let max = if state.cpu_max_freq7 > 0 {
                 state.cpu_max_freq7
             } else {
-                3250
+                3350
             };
             let _ = apply_cluster_freq_controls(7, min, max);
         }
@@ -4377,7 +4377,7 @@ fn late_boot_restore_loop() {
         let runtime_result = reassert_runtime_state(true);
         reassert_persisted_governors();
         eprintln!(
-            "RODIN_BOOT_RESTORE attempt={} runtime_ack={} runtime_ok={}",
+            "DUCHAMP_BOOT_RESTORE attempt={} runtime_ack={} runtime_ok={}",
             attempt + 1,
             KEEPALIVE_APPLY_ACK.load(Ordering::Acquire),
             i32::from(runtime_result.is_ok()),
@@ -4449,7 +4449,7 @@ fn reassert_persisted_governors() {
 
         if state.gpu_uncap == 1 {
             // Do not freeze a lower boot OPP. This step leaves DVFS enabled
-            // until the live frequency reaches 1300 MHz, then locks it.
+            // until the live frequency reaches 1400 MHz, then locks it.
             let _ = arm_or_lock_beast_gpu();
         } else if gpu_get_dvfs_enabled() != 1 {
             let _ = service_control::write("/sys/module/ged/parameters/gpu_dvfs_enable", "1");
@@ -4595,7 +4595,7 @@ fn gaming_dynamic_guard() {
 
         // Gaming and Beast own only the Mali cooling device. The vendor thermal
         // services remain running for CPU and platform management while this
-        // guard prevents a GPU cooling cap from replacing their 1300 MHz target.
+        // guard prevents a GPU cooling cap from replacing their 1400 MHz target.
         let _ = service_control::write("/sys/class/thermal/cooling_device3/cur_state", "0");
 
         if profile == 3 {
@@ -4613,7 +4613,7 @@ fn gaming_dynamic_guard() {
         smoothed_load = ((smoothed_load * 3) + load) / 4;
         let now = Instant::now();
 
-        // The MT6899 accepts the generic simple_ondemand governor name but
+        // The MT6897 accepts the generic simple_ondemand governor name but
         // does not drive the MediaTek GED OPP policy from it. GED's custom
         // boost node is an OPP floor (0 = fastest, last = slowest), so use it
         // as the real on-demand actuator while retaining the requested
@@ -4769,7 +4769,7 @@ fn charging_power_supply_event_loop() {
         };
         if fd < 0 {
             eprintln!(
-                "RODIN_CHARGING_UEVENT_SOCKET_FAIL {}",
+                "DUCHAMP_CHARGING_UEVENT_SOCKET_FAIL {}",
                 std::io::Error::last_os_error()
             );
             std::thread::sleep(Duration::from_secs(2));
@@ -4791,7 +4791,7 @@ fn charging_power_supply_event_loop() {
         } == 0;
         if !bound {
             eprintln!(
-                "RODIN_CHARGING_UEVENT_BIND_FAIL {}",
+                "DUCHAMP_CHARGING_UEVENT_BIND_FAIL {}",
                 std::io::Error::last_os_error()
             );
             unsafe { close(fd) };
@@ -4824,7 +4824,7 @@ fn charging_power_supply_event_loop() {
                 .map(|state| (state.charging, state.bypass_charging))
                 .unwrap_or((0, 0));
             if let Err(error) = maintain_charging_state(profile, bypass_charging) {
-                eprintln!("RODIN_CHARGING_UEVENT_APPLY_FAIL {error}");
+                eprintln!("DUCHAMP_CHARGING_UEVENT_APPLY_FAIL {error}");
             }
         }
 
@@ -4836,10 +4836,10 @@ fn charging_power_supply_event_loop() {
 pub fn start_background_services() {
     #[cfg(target_os = "android")]
     std::thread::spawn(bypass_monitor_loop);
-    if std::env::var("RODIN_REVERSE_IPC").as_deref() == Ok("1") {
+    if std::env::var("DUCHAMP_REVERSE_IPC").as_deref() == Ok("1") {
         std::thread::spawn(reverse_ipc_loop);
     }
-    if std::env::var("RODIN_LOOPBACK_IPC").as_deref() == Ok("1") {
+    if std::env::var("DUCHAMP_LOOPBACK_IPC").as_deref() == Ok("1") {
         std::thread::spawn(loopback_ipc_loop);
     }
     let _ = persisted_state();
@@ -4888,7 +4888,7 @@ fn loopback_ipc_loop() {
                 // A previous daemon can leave the fixed local port transiently
                 // unavailable. Keep the authenticated Unix transports alive
                 // and recover this compatibility listener without a reboot.
-                eprintln!("RODIN_ESSENTIALD_LOOPBACK_BIND_FAIL {error}");
+                eprintln!("DUCHAMP_ESSENTIALD_LOOPBACK_BIND_FAIL {error}");
                 std::thread::sleep(Duration::from_secs(2));
                 continue;
             }
@@ -4900,7 +4900,7 @@ fn loopback_ipc_loop() {
                     std::thread::spawn(move || serve_loopback_client(stream));
                 }
                 Err(error) => {
-                    eprintln!("RODIN_ESSENTIALD_LOOPBACK_ACCEPT_FAIL {error}");
+                    eprintln!("DUCHAMP_ESSENTIALD_LOOPBACK_ACCEPT_FAIL {error}");
                     std::thread::sleep(Duration::from_millis(100));
                 }
             }
@@ -5299,7 +5299,7 @@ fn gpu_get_min_freq_mhz() -> i32 {
     )
     .and_then(|s| s.trim().parse::<i64>().ok())
     .map(|hz| (hz / 1_000_000) as i32)
-    .unwrap_or(260)
+    .unwrap_or(265)
 }
 
 fn gpu_get_max_freq_mhz() -> i32 {
@@ -5368,9 +5368,9 @@ fn gpu_get_dvfs_enabled() -> i32 {
 }
 
 fn gpu_get_uncap_active() -> i32 {
-    if gpu_get_min_freq_mhz() == 1300
-        && gpu_get_max_freq_mhz() == 1300
-        && gpu_get_cur_freq_mhz() == 1300
+    if gpu_get_min_freq_mhz() == 1400
+        && gpu_get_max_freq_mhz() == 1400
+        && gpu_get_cur_freq_mhz() == 1400
         && gpu_get_governor() == "performance"
         && gpu_get_dvfs_enabled() == 0
         && gpu_get_power_policy() == "always_on"
@@ -5390,25 +5390,25 @@ fn gpu_profile_verified(profile: i32) -> bool {
 
     match profile {
         3 => {
-            min == 1300
-                && max == 1300
-                && gpu_get_cur_freq_mhz() == 1300
+            min == 1400
+                && max == 1400
+                && gpu_get_cur_freq_mhz() == 1400
                 && governor == "performance"
                 && gpu_boost_pipeline_matches(true)
                 && dvfs == 0
                 && power_policy == "always_on"
         }
         1 => {
-            min == 260
-                && max == 1300
+            min == 265
+                && max == 1400
                 && governor == "simple_ondemand"
                 && gpu_boost_pipeline_matches(true)
                 && dvfs == 1
                 && power_policy == "always_on"
         }
         2 => {
-            min == 260
-                && max == 598
+            min == 265
+                && max == 601
                 && governor == "powersave"
                 && gpu_boost_pipeline_matches(false)
                 && dvfs == 1
@@ -5433,25 +5433,25 @@ fn gpu_profile_configured(profile: i32) -> bool {
 
     match profile {
         3 => {
-            min == 1300
-                && max == 1300
-                && gpu_get_cur_freq_mhz() == 1300
+            min == 1400
+                && max == 1400
+                && gpu_get_cur_freq_mhz() == 1400
                 && governor == "performance"
                 && gpu_boost_pipeline_matches(true)
                 && dvfs == 0
                 && power_policy == "always_on"
         }
         1 => {
-            min == 260
-                && (max == 1300 || (thermal_limited && (260..1300).contains(&max)))
+            min == 265
+                && (max == 1400 || (thermal_limited && (265..1400).contains(&max)))
                 && governor == "simple_ondemand"
                 && gpu_boost_pipeline_matches(true)
                 && dvfs == 1
                 && power_policy == "always_on"
         }
         2 => {
-            min == 260
-                && (max == 598 || (thermal_limited && max < 598))
+            min == 265
+                && (max == 601 || (thermal_limited && max < 601))
                 && governor == "powersave"
                 && gpu_boost_pipeline_matches(false)
                 && dvfs == 1
@@ -5467,12 +5467,12 @@ fn gpu_profile_configured(profile: i32) -> bool {
 }
 
 fn set_gpu_min_freq(mhz: i32) -> Result<(), String> {
-    if !(260..=1300).contains(&mhz) {
-        return Err("GPU minimum frequency must be 260-1300 MHz".into());
+    if !(265..=1400).contains(&mhz) {
+        return Err("GPU minimum frequency must be 265-1400 MHz".into());
     }
     let hz = (mhz as u64) * 1_000_000;
     let khz = (mhz as u64) * 1_000;
-    let opp_boost = ((1300 - mhz) / 26).clamp(0, 40);
+    let opp_boost = ((1400 - mhz) / 28).clamp(0, 40);
     let _ = service_control::write(
         "/sys/kernel/ged/hal/custom_boost_gpu_freq",
         opp_boost.to_string(),
@@ -5498,7 +5498,7 @@ fn set_gpu_min_freq(mhz: i32) -> Result<(), String> {
     }
     mutate_persisted_state(|state| {
         state.gpu_min_freq_mhz = mhz;
-        if mhz < 1300 {
+        if mhz < 1400 {
             state.gpu_uncap = 0;
         }
     })?;
@@ -5506,12 +5506,12 @@ fn set_gpu_min_freq(mhz: i32) -> Result<(), String> {
 }
 
 fn set_gpu_max_freq(mhz: i32) -> Result<(), String> {
-    if !(260..=1300).contains(&mhz) {
-        return Err("GPU maximum frequency must be 260-1300 MHz".into());
+    if !(265..=1400).contains(&mhz) {
+        return Err("GPU maximum frequency must be 265-1400 MHz".into());
     }
     let hz = (mhz as u64) * 1_000_000;
     let khz = (mhz as u64) * 1_000;
-    let opp_upbound = ((1300 - mhz) / 26).clamp(0, 40);
+    let opp_upbound = ((1400 - mhz) / 28).clamp(0, 40);
     let _ = service_control::write(
         "/sys/kernel/ged/hal/custom_upbound_gpu_freq",
         opp_upbound.to_string(),
@@ -5533,7 +5533,7 @@ fn set_gpu_max_freq(mhz: i32) -> Result<(), String> {
     }
     mutate_persisted_state(|state| {
         state.gpu_max_freq_mhz = mhz;
-        if mhz < 1300 {
+        if mhz < 1400 {
             state.gpu_uncap = 0;
         }
     })?;
@@ -5587,18 +5587,18 @@ fn set_gpu_uncap(enable: bool) -> Result<(), String> {
         gpu_write_file(
             "/sys/class/devfreq/13000000.mali/min_freq",
             "/sys/class/misc/mali0/device/devfreq/13000000.mali/min_freq",
-            "260000000",
+            "265000000",
         )?;
         gpu_write_file(
             "/sys/class/devfreq/13000000.mali/max_freq",
             "/sys/class/misc/mali0/device/devfreq/13000000.mali/max_freq",
-            "1300000000",
+            "1400000000",
         )?;
-        let _ = service_control::write("/sys/module/ged/parameters/gpu_bottom_freq", "260000");
-        let _ = service_control::write("/sys/module/ged/parameters/gpu_cust_boost_freq", "260000");
+        let _ = service_control::write("/sys/module/ged/parameters/gpu_bottom_freq", "265000");
+        let _ = service_control::write("/sys/module/ged/parameters/gpu_cust_boost_freq", "265000");
         let _ = service_control::write(
             "/sys/module/ged/parameters/gpu_cust_upbound_freq",
-            "1300000",
+            "1400000",
         );
         let _ = service_control::write("/sys/module/ged/parameters/gpu_dvfs_enable", "1");
         let _ = service_control::write("/sys/module/ged/parameters/ged_boost_enable", "0");
@@ -5609,8 +5609,8 @@ fn set_gpu_uncap(enable: bool) -> Result<(), String> {
             "/sys/class/misc/mali0/device/devfreq/13000000.mali/governor",
             "simple_ondemand",
         )?;
-        if gpu_get_min_freq_mhz() != 260
-            || gpu_get_max_freq_mhz() != 1300
+        if gpu_get_min_freq_mhz() != 265
+            || gpu_get_max_freq_mhz() != 1400
             || gpu_get_governor() != "simple_ondemand"
             || gpu_get_power_policy() != "coarse_demand"
             || gpu_get_dvfs_enabled() != 1
@@ -5622,15 +5622,15 @@ fn set_gpu_uncap(enable: bool) -> Result<(), String> {
     mutate_persisted_state(|state| {
         state.gpu_uncap = if enable { 1 } else { 0 };
         if enable {
-            state.gpu_min_freq_mhz = 1300;
-            state.gpu_max_freq_mhz = 1300;
+            state.gpu_min_freq_mhz = 1400;
+            state.gpu_max_freq_mhz = 1400;
             state.gpu_ged_boost = 1;
             state.gpu_power_policy = "always_on".to_string();
             state.gpu = "performance".to_string();
             state.gpu_governor = "performance".to_string();
         } else {
-            state.gpu_min_freq_mhz = 260;
-            state.gpu_max_freq_mhz = 1300;
+            state.gpu_min_freq_mhz = 265;
+            state.gpu_max_freq_mhz = 1400;
             state.gpu_ged_boost = 0;
             state.gpu_power_policy = "coarse_demand".to_string();
             state.gpu = "simple_ondemand".to_string();
@@ -6444,7 +6444,7 @@ pub fn handle_command(line: &str) -> String {
             return format!("ERR {error}");
         }
         if !service_control::enabled() {
-            return "ERR Rodin Essential is disabled; enable it in Settings".into();
+            return "ERR Duchamp Essential is disabled; enable it in Settings".into();
         }
         if let Err(error) = capture_feature_original(cmd) {
             return format!("ERR {error}");
@@ -6736,7 +6736,7 @@ fn handle_enabled_command(line: &str) -> String {
 
 fn serve_authenticated_client<S: Read + Write>(mut stream: S, peer: u32, transport: i32) {
     if !client_uid_allowed(peer, configured_app_uid_policy()) {
-        eprintln!("RODIN_ESSENTIALD_PEER_REJECT unauthorized_uid");
+        eprintln!("DUCHAMP_ESSENTIALD_PEER_REJECT unauthorized_uid");
         let _ = stream.write_all(b"ERR unauthorized peer\n");
         return;
     }
@@ -6792,7 +6792,7 @@ fn serve_client_with_transport(mut stream: UnixStream, transport: i32) {
     match peer_uid(&stream) {
         Ok(peer) => serve_authenticated_client(stream, peer, transport),
         Err(error) => {
-            eprintln!("RODIN_ESSENTIALD_PEER_REJECT {error}");
+            eprintln!("DUCHAMP_ESSENTIALD_PEER_REJECT {error}");
             let _ = stream.write_all(b"ERR peer credentials unavailable\n");
         }
     }
@@ -6802,7 +6802,7 @@ fn serve_loopback_client(mut stream: TcpStream) {
     match tcp_peer_uid(&stream) {
         Ok(peer) => serve_authenticated_client(stream, peer, 3),
         Err(error) => {
-            eprintln!("RODIN_ESSENTIALD_LOOPBACK_PEER_REJECT {error}");
+            eprintln!("DUCHAMP_ESSENTIALD_LOOPBACK_PEER_REJECT {error}");
             let _ = stream.write_all(b"ERR peer credentials unavailable\n");
         }
     }
@@ -6916,9 +6916,9 @@ mod tests {
     #[test]
     fn native_socket_resolves_and_accepts_the_package_app_id_for_every_user() {
         let packages = "android 1000 0 /data/user/0/android platform 0 1 1 1 0\n\
-io.github.neeschal.rodinessential 10228 0 /data/user/0/io.github.neeschal.rodinessential default 0 1 1 1 0\n";
+com.saan.duchamp.essential 10228 0 /data/user/0/com.saan.duchamp.essential default 0 1 1 1 0\n";
         assert_eq!(
-            package_app_id_from_packages_list(packages, "io.github.neeschal.rodinessential"),
+            package_app_id_from_packages_list(packages, "com.saan.duchamp.essential"),
             Some(10_228)
         );
         let policy = AppUidPolicy::EnforceAppId(10_228);
@@ -6932,7 +6932,7 @@ io.github.neeschal.rodinessential 10228 0 /data/user/0/io.github.neeschal.rodine
     }
 
     #[test]
-    fn maps_every_charging_profile_to_rodins_verified_fcc_ceiling() {
+    fn maps_every_charging_profile_to_duchamps_verified_fcc_ceiling() {
         assert!(valid_charging_profile(0));
         assert!(valid_charging_profile(25));
         assert!(valid_charging_profile(33));
@@ -6981,12 +6981,12 @@ io.github.neeschal.rodinessential 10228 0 /data/user/0/io.github.neeschal.rodine
     fn bounds_external_framework_commands() {
         let output = run_process_with_timeout(
             "/bin/sh",
-            &["-c", "printf rodin"],
+            &["-c", "printf duchamp"],
             std::time::Duration::from_secs(1),
         )
         .unwrap();
         assert!(output.status.success());
-        assert_eq!(output.stdout, b"rodin");
+        assert_eq!(output.stdout, b"duchamp");
 
         let started = std::time::Instant::now();
         let error =
@@ -7014,33 +7014,33 @@ io.github.neeschal.rodinessential 10228 0 /data/user/0/io.github.neeschal.rodine
 
     #[test]
     fn accepts_only_ordered_frequencies_exposed_by_the_policy() {
-        let available = [300, 400, 500, 600, 2100];
-        assert!(validate_cpu_frequency_range_against(0, 400, 2100, &available).is_ok());
+        let available = [300, 400, 500, 600, 2200];
+        assert!(validate_cpu_frequency_range_against(0, 400, 2200, &available).is_ok());
         assert!(validate_cpu_frequency_range_against(0, 400, 400, &available).is_ok());
-        assert!(validate_cpu_frequency_range_against(0, 350, 2100, &available).is_err());
-        assert!(validate_cpu_frequency_range_against(0, 2100, 400, &available).is_err());
+        assert!(validate_cpu_frequency_range_against(0, 350, 2200, &available).is_err());
+        assert!(validate_cpu_frequency_range_against(0, 2200, 400, &available).is_err());
     }
 
     #[test]
-    fn formats_rodin_vendor_cpu_frequency_requests_per_policy() {
-        assert_eq!(mi_thermal_cpu_limit_request(0, 2100), "cpu0 2100000");
-        assert_eq!(mi_thermal_cpu_limit_request(4, 3000), "cpu4 3000000");
-        assert_eq!(mi_thermal_cpu_limit_request(7, 3250), "cpu7 3250000");
+    fn formats_duchamp_vendor_cpu_frequency_requests_per_policy() {
+        assert_eq!(mi_thermal_cpu_limit_request(0, 2200), "cpu0 2200000");
+        assert_eq!(mi_thermal_cpu_limit_request(4, 3200), "cpu4 3200000");
+        assert_eq!(mi_thermal_cpu_limit_request(7, 3350), "cpu7 3350000");
         assert_eq!(
-            mtk_powerhal_cpu_range_request(4, 400, 3000),
-            "4 400000 3000000"
+            mtk_powerhal_cpu_range_request(4, 400, 3200),
+            "4 400000 3200000"
         );
     }
 
     #[test]
     fn distinguishes_saved_targets_from_live_frequency_drift() {
-        assert_eq!(cpu_frequency_drift_status(-1, -1, 300, 2100), -1);
+        assert_eq!(cpu_frequency_drift_status(-1, -1, 300, 2200), -1);
         assert_eq!(cpu_frequency_drift_status(1200, 1800, 1200, 1800), 0);
         assert_eq!(cpu_frequency_drift_status(1800, 1800, 1200, 1800), 1);
     }
 
     #[test]
-    fn detects_both_rodin_touch_panel_families() {
+    fn detects_both_duchamp_touch_panel_families() {
         assert_eq!(classify_touch_panel_version("driver version: gt9916"), 1);
         assert_eq!(classify_touch_panel_version("Goodix GDIX algorithm"), 1);
         assert_eq!(classify_touch_panel_version("FocalTech FT3683G"), 2);
@@ -7048,7 +7048,7 @@ io.github.neeschal.rodinessential 10228 0 /data/user/0/io.github.neeschal.rodine
     }
 
     #[test]
-    fn finds_rodin_thp_timing_block_without_a_fixed_address() {
+    fn finds_duchamp_thp_timing_block_without_a_fixed_address() {
         let mut bytes = vec![0u8; 0x80];
         let offset = 0x10;
         put_u16(&mut bytes, offset, 135);
@@ -7088,14 +7088,14 @@ io.github.neeschal.rodinessential 10228 0 /data/user/0/io.github.neeschal.rodine
     }
 
     #[test]
-    fn parses_rodin_ged_current_opp() {
+    fn parses_duchamp_ged_current_opp() {
         assert_eq!(parse_ged_current_frequency_mhz("40 260000\n"), Some(260));
         assert_eq!(parse_ged_current_frequency_mhz("0 1300000\n"), Some(1300));
     }
 
     #[test]
     fn accepts_single_value_frequency_units() {
-        assert_eq!(parse_ged_current_frequency_mhz("260000000"), Some(260));
+        assert_eq!(parse_ged_current_frequency_mhz("265000000"), Some(265));
         assert_eq!(parse_ged_current_frequency_mhz("26"), Some(26));
         assert_eq!(parse_ged_current_frequency_mhz("unavailable"), None);
     }
@@ -7146,8 +7146,8 @@ io.github.neeschal.rodinessential 10228 0 /data/user/0/io.github.neeschal.rodine
         assert!(!persisted_cpu_ranges_active(&partial));
 
         let exact = PersistedState {
-            cpu_min_freq7: 3250,
-            cpu_max_freq7: 3250,
+            cpu_min_freq7: 3350,
+            cpu_max_freq7: 3350,
             ..PersistedState::default()
         };
         assert!(persisted_cpu_ranges_active(&exact));
@@ -7161,12 +7161,12 @@ io.github.neeschal.rodinessential 10228 0 /data/user/0/io.github.neeschal.rodine
             cpu0: "performance".into(),
             cpu4: "performance".into(),
             cpu7: "performance".into(),
-            cpu_min_freq0: 2100,
-            cpu_max_freq0: 2100,
-            cpu_min_freq4: 3000,
-            cpu_max_freq4: 3000,
-            cpu_min_freq7: 3250,
-            cpu_max_freq7: 3250,
+            cpu_min_freq0: 2200,
+            cpu_max_freq0: 2200,
+            cpu_min_freq4: 3200,
+            cpu_max_freq4: 3200,
+            cpu_min_freq7: 3350,
+            cpu_max_freq7: 3350,
             ..PersistedState::default()
         };
 

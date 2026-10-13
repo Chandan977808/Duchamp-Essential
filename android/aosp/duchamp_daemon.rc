@@ -1,0 +1,19 @@
+service duchamp_daemon /product/bin/duchamp_daemon
+    class late_start
+    user root
+    group root system package_info input graphics wakelock
+    capabilities DAC_OVERRIDE SYS_ADMIN SYS_NICE SYS_PTRACE
+    priority -10
+    oom_score_adjust -900
+    setenv DUCHAMP_STATE_DIR /data/system/duchamp-essential
+    setenv DUCHAMP_TOUCH_DIRECT_INPUT 1
+    disabled
+    restart_period 2
+
+on post-fs-data
+    restorecon /product/bin/duchamp_daemon
+    mkdir /data/system/duchamp-essential 0700 root root
+    restorecon_recursive /data/system/duchamp-essential
+
+on property:sys.boot_completed=1
+    start duchamp_daemon

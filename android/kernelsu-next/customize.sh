@@ -1,16 +1,16 @@
 #!/system/bin/sh
 
 ui_print "***************************************"
-ui_print "           Rodin Essential"
+ui_print "           Duchamp Essential"
 ui_print "      KernelSU Next / Magisk"
 ui_print "***************************************"
 
 if [ "${KSU:-false}" = "true" ]; then
-    RODIN_MANAGER="KernelSU Next"
-    RODIN_MANAGER_VERSION="${KSU_VER:-unknown}"
+    DUCHAMP_MANAGER="KernelSU Next"
+    DUCHAMP_MANAGER_VERSION="${KSU_VER:-unknown}"
 elif [ -n "${MAGISK_VER_CODE:-}" ]; then
-    RODIN_MANAGER="Magisk"
-    RODIN_MANAGER_VERSION="${MAGISK_VER:-unknown}"
+    DUCHAMP_MANAGER="Magisk"
+    DUCHAMP_MANAGER_VERSION="${MAGISK_VER:-unknown}"
 else
     abort "! Install from KernelSU Next Manager or the Magisk app"
 fi
@@ -20,48 +20,48 @@ if [ "$BOOTMODE" != "true" ]; then
 fi
 
 if [ "$ARCH" != "arm64" ]; then
-    abort "! Rodin Essential requires an arm64 device"
+    abort "! Duchamp Essential requires an arm64 device"
 fi
 
-RODIN_PRODUCT="$(getprop ro.product.device)"
-RODIN_VENDOR="$(getprop ro.product.vendor.device)"
-case "$RODIN_PRODUCT $RODIN_VENDOR" in
-    *rodin*) ;;
-    *) abort "! Unsupported device: $RODIN_PRODUCT / $RODIN_VENDOR" ;;
+DUCHAMP_PRODUCT="$(getprop ro.product.device)"
+DUCHAMP_VENDOR="$(getprop ro.product.vendor.device)"
+case "$DUCHAMP_PRODUCT $DUCHAMP_VENDOR" in
+    *duchamp*) ;;
+    *) abort "! Unsupported device: $DUCHAMP_PRODUCT / $DUCHAMP_VENDOR" ;;
 esac
 
-[ -f "$MODPATH/bin/rodin_daemon" ] || abort "! Missing Rodin daemon"
-[ -f "$MODPATH/bin/rodin_ctl" ] || abort "! Missing Rodin control client"
-[ -f "$MODPATH/app/RodinEssential.apk" ] || abort "! Missing Rodin Essential APK"
+[ -f "$MODPATH/bin/duchamp_daemon" ] || abort "! Missing Duchamp daemon"
+[ -f "$MODPATH/bin/duchamp_ctl" ] || abort "! Missing Duchamp control client"
+[ -f "$MODPATH/app/DuchampEssential.apk" ] || abort "! Missing Duchamp Essential APK"
 [ -x /system/bin/pm ] || abort "! Android package manager is unavailable"
 
-RODIN_PACKAGE=io.github.neeschal.rodinessential
+DUCHAMP_PACKAGE=com.saan.duchamp.essential
 
-rodin_native_backend_present() {
-    for RODIN_NATIVE_BINARY in \
-        /product/bin/rodin_daemon \
-        /system_ext/bin/rodin_daemon \
-        /system/bin/rodin_daemon \
-        /vendor/bin/rodin_daemon \
-        /odm/bin/rodin_daemon; do
-        [ -x "$RODIN_NATIVE_BINARY" ] && return 0
+duchamp_native_backend_present() {
+    for DUCHAMP_NATIVE_BINARY in \
+        /product/bin/duchamp_daemon \
+        /system_ext/bin/duchamp_daemon \
+        /system/bin/duchamp_daemon \
+        /vendor/bin/duchamp_daemon \
+        /odm/bin/duchamp_daemon; do
+        [ -x "$DUCHAMP_NATIVE_BINARY" ] && return 0
     done
 
-    for RODIN_NATIVE_SERVICE in rodin_daemon rodin_essentiald; do
-        [ -n "$(getprop "init.svc.$RODIN_NATIVE_SERVICE" 2>/dev/null)" ] && return 0
+    for DUCHAMP_NATIVE_SERVICE in duchamp_daemon duchamp_essentiald; do
+        [ -n "$(getprop "init.svc.$DUCHAMP_NATIVE_SERVICE" 2>/dev/null)" ] && return 0
     done
 
-    RODIN_PACKAGE_PATHS="$(/system/bin/pm path "$RODIN_PACKAGE" 2>/dev/null)"
-    case "$RODIN_PACKAGE_PATHS" in
+    DUCHAMP_PACKAGE_PATHS="$(/system/bin/pm path "$DUCHAMP_PACKAGE" 2>/dev/null)"
+    case "$DUCHAMP_PACKAGE_PATHS" in
         *package:/product/*|*package:/system_ext/*|*package:/system/*|\
         *package:/vendor/*|*package:/odm/*) return 0 ;;
     esac
     return 1
 }
 
-RODIN_NATIVE_MODE=0
-if rodin_native_backend_present; then
-    RODIN_NATIVE_MODE=1
+DUCHAMP_NATIVE_MODE=0
+if duchamp_native_backend_present; then
+    DUCHAMP_NATIVE_MODE=1
     touch "$MODPATH/rom-native-mode"
 else
     rm -f "$MODPATH/rom-native-mode"
@@ -78,70 +78,70 @@ set_perm "$MODPATH/customize.sh" 0 0 0755
 set_perm "$MODPATH/service.sh" 0 0 0755
 set_perm "$MODPATH/action.sh" 0 0 0755
 set_perm "$MODPATH/uninstall.sh" 0 0 0755
-[ "$RODIN_NATIVE_MODE" -eq 0 ] || set_perm "$MODPATH/rom-native-mode" 0 0 0644
+[ "$DUCHAMP_NATIVE_MODE" -eq 0 ] || set_perm "$MODPATH/rom-native-mode" 0 0 0644
 
-if [ "$RODIN_NATIVE_MODE" -eq 1 ]; then
+if [ "$DUCHAMP_NATIVE_MODE" -eq 1 ]; then
     ui_print "- Compatible ROM-native installation detected"
     ui_print "- Installing the signed application update without clearing data"
 else
     ui_print "- Installing the unprivileged Android app"
 fi
-RODIN_INSTALL_RESULT="$(/system/bin/pm install --user 0 -r "$MODPATH/app/RodinEssential.apk" 2>&1)"
-case "$RODIN_INSTALL_RESULT" in
+DUCHAMP_INSTALL_RESULT="$(/system/bin/pm install --user 0 -r "$MODPATH/app/DuchampEssential.apk" 2>&1)"
+case "$DUCHAMP_INSTALL_RESULT" in
     *Success*) ;;
     *INSTALL_FAILED_UPDATE_INCOMPATIBLE*)
-        if [ "$RODIN_NATIVE_MODE" -eq 1 ]; then
-            ui_print "$RODIN_INSTALL_RESULT"
+        if [ "$DUCHAMP_NATIVE_MODE" -eq 1 ]; then
+            ui_print "$DUCHAMP_INSTALL_RESULT"
             ui_print "! The ROM-native APK uses a different signing certificate"
             ui_print "! Android cannot safely update it with the public module APK"
             ui_print "! Update that ROM build with its original signing key"
             abort "! Android correctly refused a cross-signature system-app update"
         else
-            ui_print "- Legacy Rodin Essential signing certificate detected"
+            ui_print "- Legacy Duchamp Essential signing certificate detected"
             ui_print "- Performing the one-time application signing migration"
             ui_print "- Hardware profiles under /data/adb remain unchanged"
 
-            RODIN_REMOVE_RESULT="$(/system/bin/pm uninstall "$RODIN_PACKAGE" 2>&1)"
-            case "$RODIN_REMOVE_RESULT" in
+            DUCHAMP_REMOVE_RESULT="$(/system/bin/pm uninstall "$DUCHAMP_PACKAGE" 2>&1)"
+            case "$DUCHAMP_REMOVE_RESULT" in
                 *Success*) ;;
                 *)
-                    ui_print "$RODIN_REMOVE_RESULT"
+                    ui_print "$DUCHAMP_REMOVE_RESULT"
                     abort "! Could not remove the legacy application"
                     ;;
             esac
 
-            RODIN_INSTALL_RESULT="$(/system/bin/pm install --user 0 "$MODPATH/app/RodinEssential.apk" 2>&1)"
-            case "$RODIN_INSTALL_RESULT" in
+            DUCHAMP_INSTALL_RESULT="$(/system/bin/pm install --user 0 "$MODPATH/app/DuchampEssential.apk" 2>&1)"
+            case "$DUCHAMP_INSTALL_RESULT" in
                 *Success*)
                     ui_print "- Signing migration completed"
                     ui_print "- Application-local preferences were reset once"
                     ;;
                 *)
-                    ui_print "$RODIN_INSTALL_RESULT"
+                    ui_print "$DUCHAMP_INSTALL_RESULT"
                     abort "! APK installation failed after signing migration"
                     ;;
             esac
         fi
         ;;
     *)
-        ui_print "$RODIN_INSTALL_RESULT"
+        ui_print "$DUCHAMP_INSTALL_RESULT"
         abort "! APK installation failed"
         ;;
 esac
 
-/system/bin/pm path "$RODIN_PACKAGE" >/dev/null 2>&1 || \
-    abort "! Android did not register Rodin Essential"
+/system/bin/pm path "$DUCHAMP_PACKAGE" >/dev/null 2>&1 || \
+    abort "! Android did not register Duchamp Essential"
 
-RODIN_EXPECTED_VERSION_CODE="$(sed -n 's/^versionCode=//p' "$MODPATH/module.prop" | head -n 1)"
-RODIN_INSTALLED_VERSION_CODE="$(/system/bin/dumpsys package "$RODIN_PACKAGE" 2>/dev/null \
+DUCHAMP_EXPECTED_VERSION_CODE="$(sed -n 's/^versionCode=//p' "$MODPATH/module.prop" | head -n 1)"
+DUCHAMP_INSTALLED_VERSION_CODE="$(/system/bin/dumpsys package "$DUCHAMP_PACKAGE" 2>/dev/null \
     | sed -n 's/.*versionCode=\([0-9][0-9]*\).*/\1/p' | head -n 1)"
-[ -n "$RODIN_EXPECTED_VERSION_CODE" ] || abort "! Module versionCode is missing"
-[ "$RODIN_INSTALLED_VERSION_CODE" = "$RODIN_EXPECTED_VERSION_CODE" ] || \
-    abort "! App/module version mismatch: $RODIN_INSTALLED_VERSION_CODE / $RODIN_EXPECTED_VERSION_CODE"
+[ -n "$DUCHAMP_EXPECTED_VERSION_CODE" ] || abort "! Module versionCode is missing"
+[ "$DUCHAMP_INSTALLED_VERSION_CODE" = "$DUCHAMP_EXPECTED_VERSION_CODE" ] || \
+    abort "! App/module version mismatch: $DUCHAMP_INSTALLED_VERSION_CODE / $DUCHAMP_EXPECTED_VERSION_CODE"
 
-ui_print "- Device: $RODIN_PRODUCT"
-ui_print "- Root manager: $RODIN_MANAGER $RODIN_MANAGER_VERSION"
-if [ "$RODIN_NATIVE_MODE" -eq 1 ]; then
+ui_print "- Device: $DUCHAMP_PRODUCT"
+ui_print "- Root manager: $DUCHAMP_MANAGER $DUCHAMP_MANAGER_VERSION"
+if [ "$DUCHAMP_NATIVE_MODE" -eq 1 ]; then
     ui_print "- Mode: update layer over the ROM-native installation"
     ui_print "- App: signature-compatible update; existing data retained"
     ui_print "- Daemon: module service takes over after native init stops"

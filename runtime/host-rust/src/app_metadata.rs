@@ -3,7 +3,7 @@ use jni::objects::{JObject, JString, JValue};
 use std::collections::BTreeMap;
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn rodin_host_app_labels(
+pub unsafe extern "C" fn duchamp_host_app_labels(
     input: *const u8,
     len: i32,
     output: *mut u8,
@@ -23,9 +23,9 @@ pub unsafe extern "C" fn rodin_host_app_labels(
     if packages.len() > 4096 {
         return -1;
     }
-    let activity = super::RODIN_PHOTO_ACTIVITY.load(std::sync::atomic::Ordering::Acquire)
+    let activity = super::DUCHAMP_PHOTO_ACTIVITY.load(std::sync::atomic::Ordering::Acquire)
         as *mut super::ANativeActivity;
-    let Some((vm, object, _)) = super::rodin_photo_vm_and_object(activity) else {
+    let Some((vm, object, _)) = super::duchamp_photo_vm_and_object(activity) else {
         return -1;
     };
     let Ok(mut env) = vm.attach_current_thread() else {
@@ -90,7 +90,7 @@ pub unsafe extern "C" fn rodin_host_app_labels(
 /// Rasterize real PackageManager drawables (including adaptive icons) through
 /// Android Canvas. Icons are requested in bounded batches, never all at once.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn rodin_host_app_icons(
+pub unsafe extern "C" fn duchamp_host_app_icons(
     input: *const u8,
     len: i32,
     output: *mut u8,
@@ -110,9 +110,9 @@ pub unsafe extern "C" fn rodin_host_app_icons(
     if packages.len() > 40 {
         return -1;
     }
-    let activity = super::RODIN_PHOTO_ACTIVITY.load(std::sync::atomic::Ordering::Acquire)
+    let activity = super::DUCHAMP_PHOTO_ACTIVITY.load(std::sync::atomic::Ordering::Acquire)
         as *mut super::ANativeActivity;
-    let Some((vm, object, _)) = super::rodin_photo_vm_and_object(activity) else {
+    let Some((vm, object, _)) = super::duchamp_photo_vm_and_object(activity) else {
         return -1;
     };
     let Ok(mut env) = vm.attach_current_thread() else {

@@ -1,4 +1,4 @@
-package io.github.neeschal.rodinessential;
+package com.saan.duchamp.essential;
 
 import android.app.NativeActivity;
 import android.content.Intent;
@@ -12,9 +12,9 @@ import android.window.OnBackInvokedCallback;
 import android.window.OnBackInvokedDispatcher;
 
 /** NEESCHAL: a platform adapter, not a second UI toolkit. */
-public final class RodinActivity extends NativeActivity {
-    static { System.loadLibrary("rodin_essential_host"); }
-    private static RodinActivity current;
+public final class DuchampActivity extends NativeActivity {
+    static { System.loadLibrary("duchamp_essential_host"); }
+    private static DuchampActivity current;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Runnable refresh = this::refreshBack;
     private OnBackInvokedCallback callback;
@@ -40,7 +40,7 @@ public final class RodinActivity extends NativeActivity {
     }
     /** Called only when native navigation ownership changes; no polling loop. */
     public static void refreshBackFromNative() {
-        RodinActivity activity = current;
+        DuchampActivity activity = current;
         if (activity != null) {
             activity.main.removeCallbacks(activity.refresh);
             activity.main.post(activity.refresh);

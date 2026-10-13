@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rodin_essential_ui/main.dart';
+import 'package:duchamp_essential_ui/main.dart';
 
 Map<String, dynamic> state() => <String, dynamic>{
   'config': <String, dynamic>{'enabled': false, 'profiles': <dynamic>[]},
@@ -131,10 +131,10 @@ void main() {
       await tester.ensureVisible(find.text('com.example.game'));
       await tester.tap(find.text('com.example.game'));
       await tester.pumpAndSettle();
-      expect(RodinNestedBackController.handleBack(), isTrue);
+      expect(DuchampNestedBackController.handleBack(), isTrue);
       await tester.pumpAndSettle();
       expect(find.text('Search installed apps'), findsOneWidget);
-      expect(RodinNestedBackController.handleBack(), isFalse);
+      expect(DuchampNestedBackController.handleBack(), isFalse);
       await tester.pumpWidget(const SizedBox());
     },
   );

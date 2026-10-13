@@ -1,4 +1,4 @@
-package io.github.neeschal.rodinessential;
+package com.saan.duchamp.essential;
 
 import android.os.Handler;
 import android.os.Looper;
@@ -16,7 +16,7 @@ import android.service.quicksettings.TileService;
 
 /** SystemUI owns the tile. The daemon owns charging. Never flip a fake state. */
 public final class BypassTileService extends TileService {
-    static { System.loadLibrary("rodin_essential_host"); }
+    static { System.loadLibrary("duchamp_essential_host"); }
     private final Handler main = new Handler(Looper.getMainLooper());
     private boolean listening;
     private int lastState = -1;

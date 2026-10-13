@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rodin_essential_ui/touch_light.dart';
-import 'package:rodin_essential_ui/main.dart';
+import 'package:duchamp_essential_ui/touch_light.dart';
+import 'package:duchamp_essential_ui/main.dart';
 
-RodinTouchLightPainter painter(WidgetTester tester) => tester
+DuchampTouchLightPainter painter(WidgetTester tester) => tester
     .widgetList<CustomPaint>(find.byType(CustomPaint))
     .map((widget) => widget.foregroundPainter)
-    .whereType<RodinTouchLightPainter>()
+    .whereType<DuchampTouchLightPainter>()
     .single;
 
 void main() {
@@ -15,7 +15,7 @@ void main() {
         home: MediaQuery(
           data: MediaQueryData(disableAnimations: reduced),
           child: Center(
-            child: RodinTouchLight(
+            child: DuchampTouchLight(
               accent: Colors.cyan,
               enabled: enabled,
               child: SizedBox(width: 240, height: 100, child: child),
@@ -38,7 +38,7 @@ void main() {
         ),
       ),
     );
-    final box = tester.getRect(find.byType(RodinTouchLight));
+    final box = tester.getRect(find.byType(DuchampTouchLight));
     final gesture = await tester.startGesture(
       box.topLeft + const Offset(20, 40),
     );
@@ -72,11 +72,11 @@ void main() {
         ),
       ),
     );
-    await tester.tap(find.byType(RodinTouchLight));
+    await tester.tap(find.byType(DuchampTouchLight));
     await tester.pumpAndSettle();
     expect(taps, 1);
     final gesture = await tester.startGesture(
-      tester.getCenter(find.byType(RodinTouchLight)),
+      tester.getCenter(find.byType(DuchampTouchLight)),
     );
     await tester.pump(const Duration(milliseconds: 100));
     await gesture.cancel();
@@ -91,7 +91,7 @@ void main() {
   ) async {
     await tester.pumpWidget(surface(const Text('Ready'), reduced: true));
     final gesture = await tester.startGesture(
-      tester.getCenter(find.byType(RodinTouchLight)),
+      tester.getCenter(find.byType(DuchampTouchLight)),
     );
     await tester.pump();
     expect(painter(tester).strength.value, 1);
@@ -106,7 +106,7 @@ void main() {
     (tester) async {
       await tester.pumpWidget(surface(const Text('Ready')));
       final gesture = await tester.startGesture(
-        tester.getCenter(find.byType(RodinTouchLight)),
+        tester.getCenter(find.byType(DuchampTouchLight)),
       );
       await tester.pump(const Duration(milliseconds: 100));
       await gesture.moveTo(const Offset(1, 1));
@@ -118,7 +118,7 @@ void main() {
         tester
             .widgetList<CustomPaint>(find.byType(CustomPaint))
             .where(
-              (widget) => widget.foregroundPainter is RodinTouchLightPainter,
+              (widget) => widget.foregroundPainter is DuchampTouchLightPainter,
             ),
         isEmpty,
       );

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rodin_essential_ui/backend/system_colors_monitor.dart';
+import 'package:duchamp_essential_ui/backend/system_colors_monitor.dart';
 
 void main() {
   testWidgets('palette completion is delivered without the dashboard delay', (
@@ -8,7 +8,7 @@ void main() {
     (int, int) stamp = (1, 4);
     int reads = 0;
     final List<(int, int)> delivered = <(int, int)>[];
-    final RodinSystemColorsMonitor monitor = RodinSystemColorsMonitor(
+    final DuchampSystemColorsMonitor monitor = DuchampSystemColorsMonitor(
       readStamp: () {
         reads++;
         return stamp;
@@ -17,16 +17,16 @@ void main() {
     );
     addTearDown(monitor.dispose);
     monitor.watch();
-    await tester.pump(RodinSystemColorsMonitor.interval);
+    await tester.pump(DuchampSystemColorsMonitor.interval);
     expect(delivered, <(int, int)>[(1, 4)]);
-    await tester.pump(RodinSystemColorsMonitor.interval);
+    await tester.pump(DuchampSystemColorsMonitor.interval);
     expect(
       delivered,
       hasLength(1),
       reason: 'no repeated UI refresh while busy',
     );
     stamp = (2, 5);
-    await tester.pump(RodinSystemColorsMonitor.interval);
+    await tester.pump(DuchampSystemColorsMonitor.interval);
     expect(delivered.last, (2, 5));
     final int completedReads = reads;
     await tester.pump(const Duration(seconds: 1));
@@ -38,8 +38,8 @@ void main() {
   ) async {
     (int, int) stamp = (1, 4);
     final List<(int, int)> delivered = <(int, int)>[];
-    late final RodinSystemColorsMonitor monitor;
-    monitor = RodinSystemColorsMonitor(
+    late final DuchampSystemColorsMonitor monitor;
+    monitor = DuchampSystemColorsMonitor(
       readStamp: () => stamp,
       onChanged: () {
         delivered.add(stamp);
@@ -52,11 +52,11 @@ void main() {
     addTearDown(monitor.dispose);
     monitor.watch();
     stamp = (2, 5);
-    await tester.pump(RodinSystemColorsMonitor.interval);
-    await tester.pump(RodinSystemColorsMonitor.interval);
+    await tester.pump(DuchampSystemColorsMonitor.interval);
+    await tester.pump(DuchampSystemColorsMonitor.interval);
     expect(delivered, <(int, int)>[(2, 5), (1, 5)]);
     stamp = (-1, 6);
-    await tester.pump(RodinSystemColorsMonitor.interval);
+    await tester.pump(DuchampSystemColorsMonitor.interval);
     expect(delivered.last, (-1, 6));
     await tester.pump(const Duration(seconds: 1));
     expect(delivered, hasLength(3));
@@ -66,7 +66,7 @@ void main() {
     tester,
   ) async {
     int reads = 0;
-    final RodinSystemColorsMonitor monitor = RodinSystemColorsMonitor(
+    final DuchampSystemColorsMonitor monitor = DuchampSystemColorsMonitor(
       readStamp: () {
         reads++;
         return (1, 0);

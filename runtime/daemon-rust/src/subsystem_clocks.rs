@@ -336,7 +336,7 @@ pub(super) fn command(cmd: &str) -> Result<Value, String> {
         })
     {
         if !service_control::enabled() {
-            return Err("Rodin Essential is disabled".into());
+            return Err("Duchamp Essential is disabled".into());
         }
         let parts: Vec<_> = arg.split_whitespace().collect();
         if parts.len() != if range { 3 } else { 2 } {
@@ -388,7 +388,7 @@ pub(super) fn command(cmd: &str) -> Result<Value, String> {
     }
     if let Some(arg) = cmd.strip_prefix("ACTION subsystem.clocks.trial ") {
         if !service_control::enabled() {
-            return Err("Rodin Essential is disabled".into());
+            return Err("Duchamp Essential is disabled".into());
         }
         let kind = Kind::parse(arg)?;
         let root = kind.root();
@@ -475,7 +475,7 @@ mod tests {
     }
     #[test]
     fn supported_locks_restore_both_bounds_and_preserve_other_nodes() {
-        let root = std::env::temp_dir().join(format!("rodin-clock-test-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("duchamp-clock-test-{}", std::process::id()));
         fs::create_dir_all(&root).unwrap();
         for (name, value) in [
             ("name", "112b0000.ufshci"),

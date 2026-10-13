@@ -4,8 +4,8 @@ Future<bool> _confirmAppProfileReset(
   BuildContext context, {
   required bool all,
 }) async {
-  final appearance = RodinAppearanceScope.of(context);
-  return await showRodinDialog<bool>(
+  final appearance = DuchampAppearanceScope.of(context);
+  return await showDuchampDialog<bool>(
         context: context,
         builder: (BuildContext context) {
           final ColorScheme colors = Theme.of(context).colorScheme;
@@ -21,7 +21,7 @@ Future<bool> _confirmAppProfileReset(
                   double.infinity,
                 ),
               ),
-              child: RodinAppearanceScope(
+              child: DuchampAppearanceScope(
                 config: appearance,
                 child: SurfaceCard(
                   child: SingleChildScrollView(
@@ -62,14 +62,14 @@ Future<bool> _confirmAppProfileReset(
                           children: <Widget>[
                             TextButton(
                               onPressed: () {
-                                RodinBackend.instance.haptic(1);
+                                DuchampBackend.instance.haptic(1);
                                 Navigator.pop(context, false);
                               },
                               child: const Text('Cancel'),
                             ),
                             FilledButton(
                               onPressed: () {
-                                RodinBackend.instance.haptic(1);
+                                DuchampBackend.instance.haptic(1);
                                 Navigator.pop(context, true);
                               },
                               child: Text(all ? 'Reset profiles' : 'Reset app'),
@@ -128,7 +128,7 @@ class _PerAppControlsScreenState extends State<PerAppControlsScreen> {
       _icons.addAll(_cachedIcons);
       _iconAttempts.addAll(_icons.keys);
     }
-    RodinNestedBackController.attach(
+    DuchampNestedBackController.attach(
       this,
       _consumeBack,
       canPreview: () => _selected != null,
@@ -146,7 +146,7 @@ class _PerAppControlsScreenState extends State<PerAppControlsScreen> {
 
   @override
   void dispose() {
-    RodinNestedBackController.detach(this);
+    DuchampNestedBackController.detach(this);
     _timer?.cancel();
     _iconTimer?.cancel();
     _search.dispose();
@@ -267,7 +267,7 @@ class _PerAppControlsScreenState extends State<PerAppControlsScreen> {
         _busy = !background;
         _error = null;
       });
-    if (!background) RodinBackend.instance.haptic(1);
+    if (!background) DuchampBackend.instance.haptic(1);
     try {
       final dynamic reply = await _command(command);
       if (mounted)
@@ -312,20 +312,20 @@ class _PerAppControlsScreenState extends State<PerAppControlsScreen> {
       child: AnimatedSwitcher(
         duration: MediaQuery.disableAnimationsOf(context)
             ? Duration.zero
-            : RodinInteractionSettings.motionDuration(320),
+            : DuchampInteractionSettings.motionDuration(320),
         reverseDuration: MediaQuery.disableAnimationsOf(context)
             ? Duration.zero
-            : RodinInteractionSettings.motionDuration(220),
+            : DuchampInteractionSettings.motionDuration(220),
         switchInCurve: Curves.linear,
         switchOutCurve: Curves.linear,
         layoutBuilder: (Widget? currentChild, List<Widget> previousChildren) =>
-            rodinDetailLayout(
+            duchampDetailLayout(
               currentChild,
               previousChildren,
               forward: _forward,
             ),
         transitionBuilder: (Widget child, Animation<double> animation) {
-          return RodinDetailTransition(
+          return DuchampDetailTransition(
             animation: animation,
             previewThrough: true,
             forward: _forward,
@@ -354,7 +354,7 @@ class _PerAppControlsScreenState extends State<PerAppControlsScreen> {
   Widget _buildContent(BuildContext context) {
     final Map<String, dynamic>? selected = _selected;
     if (selected != null) {
-      return RodinPredictivePlane(
+      return DuchampPredictivePlane(
         nested: true,
         destination: _buildAppList(context),
         child: _PerAppEditor(
@@ -383,7 +383,7 @@ class _PerAppControlsScreenState extends State<PerAppControlsScreen> {
         ),
       );
     }
-    return RodinPredictivePlane(nested: true, child: _buildAppList(context));
+    return DuchampPredictivePlane(nested: true, child: _buildAppList(context));
   }
 
   Widget _buildAppList(BuildContext context) {
@@ -392,7 +392,7 @@ class _PerAppControlsScreenState extends State<PerAppControlsScreen> {
     final ColorScheme colors = Theme.of(context).colorScheme;
     final String? backendError = _state?['error']?.toString();
     final String? owner = (_state?['owner'] as Map?)?['package']?.toString();
-    return RodinScrollPage(
+    return DuchampScrollPage(
       key: const PageStorageKey<String>('per-app-installed-list'),
       children: <Widget>[
         DetailHeader(
@@ -452,7 +452,7 @@ class _PerAppControlsScreenState extends State<PerAppControlsScreen> {
                   Expanded(
                     child: Text(
                       _state?['serviceEnabled'] == false
-                          ? 'Rodin Essential is disabled. No app profile is applied.'
+                          ? 'Duchamp Essential is disabled. No app profile is applied.'
                           : owner != null
                           ? 'Active app: $owner'
                           : 'Your global controls are active.',
@@ -504,7 +504,7 @@ class _PerAppControlsScreenState extends State<PerAppControlsScreen> {
           ),
           value: _showSystem,
           onChanged: (bool value) {
-            RodinBackend.instance.haptic(1);
+            DuchampBackend.instance.haptic(1);
             setState(() {
               _showSystem = value;
               _limit = 40;
@@ -581,7 +581,7 @@ class _PerAppControlsScreenState extends State<PerAppControlsScreen> {
                       onTap: _busy
                           ? null
                           : () {
-                              RodinBackend.instance.haptic(1);
+                              DuchampBackend.instance.haptic(1);
                               setState(() {
                                 _forward = true;
                                 _selected = app;
@@ -595,7 +595,7 @@ class _PerAppControlsScreenState extends State<PerAppControlsScreen> {
                         child: Divider(
                           height: 1,
                           thickness: 0.8,
-                          color: RodinSurfaceLines.divider(colors),
+                          color: DuchampSurfaceLines.divider(colors),
                         ),
                       ),
                   ],
@@ -672,7 +672,7 @@ class _PerAppEditorState extends State<_PerAppEditor> {
   }
 
   void _set(String key, dynamic value) {
-    RodinBackend.instance.haptic(1);
+    DuchampBackend.instance.haptic(1);
     setState(() {
       if (value == null) {
         _draft.remove(key);
@@ -739,7 +739,7 @@ class _PerAppEditorState extends State<_PerAppEditor> {
               ? null
               : () => change(key == 'global' ? null : key),
           child: AnimatedContainer(
-            duration: RodinInteractionSettings.motionDuration(160),
+            duration: DuchampInteractionSettings.motionDuration(160),
             curve: Curves.easeOutCubic,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
             decoration: BoxDecoration(
@@ -777,7 +777,7 @@ class _PerAppEditorState extends State<_PerAppEditor> {
                   width: 16,
                   child: AnimatedOpacity(
                     opacity: active ? 1 : 0,
-                    duration: RodinInteractionSettings.motionDuration(120),
+                    duration: DuchampInteractionSettings.motionDuration(120),
                     child: Icon(Icons.check_rounded, size: 16, color: accent),
                   ),
                 ),
@@ -920,7 +920,7 @@ class _PerAppEditorState extends State<_PerAppEditor> {
   @override
   Widget build(BuildContext context) {
     final ColorScheme colors = Theme.of(context).colorScheme;
-    return RodinScrollPage(
+    return DuchampScrollPage(
       key: PageStorageKey<String>(
         'per-app-editor-${widget.app['user']}:${widget.app['package']}',
       ),
@@ -942,7 +942,7 @@ class _PerAppEditorState extends State<_PerAppEditor> {
           subtitle: widget.active
               ? 'Profile active · daemon-controlled'
               : !widget.serviceEnabled
-              ? 'Rodin Essential is disabled'
+              ? 'Duchamp Essential is disabled'
               : !widget.overridesEnabled
               ? 'Saved only · per-app overrides are off'
               : _draft['enabled'] != true
@@ -970,7 +970,7 @@ class _PerAppEditorState extends State<_PerAppEditor> {
                   onPressed: widget.busy || !widget.serviceEnabled
                       ? null
                       : () async {
-                          RodinBackend.instance.haptic(1);
+                          DuchampBackend.instance.haptic(1);
                           await widget.onEnableOverrides();
                         },
                   icon: const Icon(Icons.power_settings_new_rounded),
@@ -1052,7 +1052,7 @@ class _PerAppEditorState extends State<_PerAppEditor> {
                 _draft['touch'],
                 <String, String>{
                   for (final int v in _numbers('touch'))
-                    '$v': v == 0 ? 'OEM adaptive' : _rodinTouchLabel(v),
+                    '$v': v == 0 ? 'OEM adaptive' : _duchampTouchLabel(v),
                 },
                 (String? v) => _set('touch', v == null ? null : int.parse(v)),
               ),
@@ -1092,7 +1092,7 @@ class _PerAppEditorState extends State<_PerAppEditor> {
                 _draft['gpu'],
                 <String, String>{
                   for (final int v in _numbers('gpu'))
-                    '$v': _rodinPerformanceLabel(v),
+                    '$v': _duchampPerformanceLabel(v),
                 },
                 (String? v) => _set('gpu', v == null ? null : int.parse(v)),
               ),

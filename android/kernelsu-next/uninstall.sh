@@ -1,46 +1,46 @@
 #!/system/bin/sh
 
 MODDIR=${0%/*}
-RODIN_ROOT=/data/adb/rodin-essential
-RODIN_WATCHDOG_LOCK="$RODIN_ROOT/watchdog.lock"
-RODIN_WATCHDOG_PID="$(cat "$RODIN_ROOT/watchdog.pid" 2>/dev/null)"
-RODIN_PACKAGE=io.github.neeschal.rodinessential
-RODIN_NATIVE_MODE=0
-[ -f "$MODDIR/rom-native-mode" ] && RODIN_NATIVE_MODE=1
+DUCHAMP_ROOT=/data/adb/duchamp-essential
+DUCHAMP_WATCHDOG_LOCK="$DUCHAMP_ROOT/watchdog.lock"
+DUCHAMP_WATCHDOG_PID="$(cat "$DUCHAMP_ROOT/watchdog.pid" 2>/dev/null)"
+DUCHAMP_PACKAGE=com.saan.duchamp.essential
+DUCHAMP_NATIVE_MODE=0
+[ -f "$MODDIR/rom-native-mode" ] && DUCHAMP_NATIVE_MODE=1
 
-case "$RODIN_WATCHDOG_PID" in
+case "$DUCHAMP_WATCHDOG_PID" in
     ''|*[!0-9]*) ;;
-    *) kill "$RODIN_WATCHDOG_PID" 2>/dev/null ;;
+    *) kill "$DUCHAMP_WATCHDOG_PID" 2>/dev/null ;;
 esac
 
-for RODIN_PROCESS_NAME in rodin_daemon rodin_essentiald; do
-    for RODIN_PID in $(pidof "$RODIN_PROCESS_NAME" 2>/dev/null); do
-        kill "$RODIN_PID" 2>/dev/null
+for DUCHAMP_PROCESS_NAME in duchamp_daemon duchamp_essentiald; do
+    for DUCHAMP_PID in $(pidof "$DUCHAMP_PROCESS_NAME" 2>/dev/null); do
+        kill "$DUCHAMP_PID" 2>/dev/null
     done
 done
 sleep 1
-for RODIN_PROCESS_NAME in rodin_daemon rodin_essentiald; do
-    for RODIN_PID in $(pidof "$RODIN_PROCESS_NAME" 2>/dev/null); do
-        kill -9 "$RODIN_PID" 2>/dev/null
+for DUCHAMP_PROCESS_NAME in duchamp_daemon duchamp_essentiald; do
+    for DUCHAMP_PID in $(pidof "$DUCHAMP_PROCESS_NAME" 2>/dev/null); do
+        kill -9 "$DUCHAMP_PID" 2>/dev/null
     done
 done
 
-rm -f "$RODIN_ROOT/watchdog.pid" "$RODIN_WATCHDOG_LOCK/pid" "$RODIN_WATCHDOG_LOCK/boot_id"
-rmdir "$RODIN_WATCHDOG_LOCK" 2>/dev/null
-rm -f "$RODIN_ROOT/bin/rodin_daemon" "$RODIN_ROOT/bin/rodin_ctl"
-rmdir "$RODIN_ROOT/bin" 2>/dev/null
-rm -f "$RODIN_ROOT/backend.log" "$RODIN_ROOT/backend.log.1"
+rm -f "$DUCHAMP_ROOT/watchdog.pid" "$DUCHAMP_WATCHDOG_LOCK/pid" "$DUCHAMP_WATCHDOG_LOCK/boot_id"
+rmdir "$DUCHAMP_WATCHDOG_LOCK" 2>/dev/null
+rm -f "$DUCHAMP_ROOT/bin/duchamp_daemon" "$DUCHAMP_ROOT/bin/duchamp_ctl"
+rmdir "$DUCHAMP_ROOT/bin" 2>/dev/null
+rm -f "$DUCHAMP_ROOT/backend.log" "$DUCHAMP_ROOT/backend.log.1"
 
-if [ "$RODIN_NATIVE_MODE" -eq 1 ]; then
+if [ "$DUCHAMP_NATIVE_MODE" -eq 1 ]; then
     # The module APK is an Android package-manager update over the matching ROM
     # system app. Revert only that update, keep package data, and return daemon
     # ownership to init. The native state directory is never removed.
-    /system/bin/cmd package uninstall-system-updates "$RODIN_PACKAGE" \
-        >"$RODIN_ROOT/native-app-rollback.log" 2>&1 || true
-    /system/bin/pm enable --user 0 "$RODIN_PACKAGE" >/dev/null 2>&1 || true
-    for RODIN_NATIVE_SERVICE in rodin_daemon rodin_essentiald; do
-        if [ -n "$(getprop "init.svc.$RODIN_NATIVE_SERVICE" 2>/dev/null)" ]; then
-            /system/bin/setprop ctl.start "$RODIN_NATIVE_SERVICE" 2>/dev/null || true
+    /system/bin/cmd package uninstall-system-updates "$DUCHAMP_PACKAGE" \
+        >"$DUCHAMP_ROOT/native-app-rollback.log" 2>&1 || true
+    /system/bin/pm enable --user 0 "$DUCHAMP_PACKAGE" >/dev/null 2>&1 || true
+    for DUCHAMP_NATIVE_SERVICE in duchamp_daemon duchamp_essentiald; do
+        if [ -n "$(getprop "init.svc.$DUCHAMP_NATIVE_SERVICE" 2>/dev/null)" ]; then
+            /system/bin/setprop ctl.start "$DUCHAMP_NATIVE_SERVICE" 2>/dev/null || true
         fi
     done
 fi

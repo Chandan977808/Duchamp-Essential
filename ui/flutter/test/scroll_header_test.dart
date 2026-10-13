@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rodin_essential_ui/main.dart';
-import 'package:rodin_essential_ui/page_motion.dart';
+import 'package:duchamp_essential_ui/main.dart';
+import 'package:duchamp_essential_ui/page_motion.dart';
 
 void main() {
   testWidgets('header preserves backdrop but blocks covered taps', (
@@ -11,7 +11,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: RodinHeaderHitRegion(
+          body: DuchampHeaderHitRegion(
             top: 80,
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
@@ -43,7 +43,7 @@ void main() {
             child: ValueListenableBuilder<bool>(
               valueListenable: visible,
               builder: (_, shown, child) => shown
-                  ? RodinScrollPage(
+                  ? DuchampScrollPage(
                       key: const PageStorageKey<String>('remembered-detail'),
                       children: <Widget>[
                         DetailHeader(title: 'Saved page', onBack: () {}),
@@ -65,9 +65,9 @@ void main() {
     await tester.pump();
     await tester.pump();
     final clip = find.byKey(
-      const ValueKey<String>('rodin-header-content-clip'),
+      const ValueKey<String>('duchamp-header-content-clip'),
     );
-    expect(tester.widget<RodinHeaderHitRegion>(clip).top, 66);
+    expect(tester.widget<DuchampHeaderHitRegion>(clip).top, 66);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
     visible.dispose();
@@ -82,14 +82,14 @@ void main() {
         MaterialApp(
           home: ValueListenableBuilder<bool>(
             valueListenable: moving,
-            child: RodinScrollPage(
+            child: DuchampScrollPage(
               slivers: slivers
                   ? const [SliverToBoxAdapter(child: SizedBox(height: 2000))]
                   : null,
               children: const [SizedBox(height: 2000)],
             ),
             builder: (_, inFlight, child) =>
-                RodinMotionViewportScope(inFlight: inFlight, child: child!),
+                DuchampMotionViewportScope(inFlight: inFlight, child: child!),
           ),
         ),
       );
@@ -115,7 +115,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: RodinScrollPage(
+            body: DuchampScrollPage(
               header: slivers
                   ? DetailHeader(title: 'Per-App Controls', onBack: () {})
                   : null,
@@ -138,10 +138,10 @@ void main() {
         ),
       );
       final Finder clip = find.byKey(
-        const ValueKey<String>('rodin-header-content-clip'),
+        const ValueKey<String>('duchamp-header-content-clip'),
       );
       double clipTop() {
-        return tester.widget<RodinHeaderHitRegion>(clip).top;
+        return tester.widget<DuchampHeaderHitRegion>(clip).top;
       }
 
       expect(clipTop(), 78); // Fallback inset 24 + expanded header 54.

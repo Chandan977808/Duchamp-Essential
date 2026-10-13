@@ -15,9 +15,9 @@ class ScopedStockPolicyTests(unittest.TestCase):
             "(neverallow base_typeattr_455 self (capability (sys_ptrace)))\n"
         )
         changed = module.scoped_exception(source)
-        self.assertIn("storaged rodin_daemon", changed)
-        self.assertIn("init vold rodin_daemon", changed)
-        self.assertEqual(changed.count("rodin_daemon"), 2)
+        self.assertIn("storaged duchamp_daemon", changed)
+        self.assertIn("init vold duchamp_daemon", changed)
+        self.assertEqual(changed.count("duchamp_daemon"), 2)
         self.assertIn("(neverallow base_typeattr_455 self (capability (sys_ptrace)))", changed)
 
     def test_unknown_base_rejected(self):

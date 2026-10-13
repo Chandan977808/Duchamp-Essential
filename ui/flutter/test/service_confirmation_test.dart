@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rodin_essential_ui/service_confirmation.dart';
+import 'package:duchamp_essential_ui/service_confirmation.dart';
 
 void main() {
   for (final bool reset in <bool>[false, true]) {
@@ -19,7 +19,7 @@ void main() {
                     onPressed: () async {
                       result = await showDialog<bool>(
                         context: context,
-                        builder: (_) => RodinServiceConfirmation(
+                        builder: (_) => DuchampServiceConfirmation(
                           reset: reset,
                           cornerRadius: 16,
                           accent: const Color(0xFF35C997),
@@ -58,7 +58,7 @@ void main() {
               confirm
                   ? reset
                         ? 'Reset all settings'
-                        : 'Disable Rodin Essential'
+                        : 'Disable Duchamp Essential'
                   : 'Cancel',
             ),
           );
@@ -68,7 +68,7 @@ void main() {
               confirm
                   ? reset
                         ? 'Reset all settings'
-                        : 'Disable Rodin Essential'
+                        : 'Disable Duchamp Essential'
                   : 'Cancel',
             ),
           );
@@ -94,7 +94,7 @@ void main() {
             size: Size(320, 640),
             textScaler: TextScaler.linear(2),
           ),
-          child: RodinServiceConfirmation(
+          child: DuchampServiceConfirmation(
             reset: true,
             cornerRadius: 16,
             accent: const Color(0xFF35C997),

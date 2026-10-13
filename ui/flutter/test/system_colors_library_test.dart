@@ -1,14 +1,14 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rodin_essential_ui/backend/system_colors_library.dart';
+import 'package:duchamp_essential_ui/backend/system_colors_library.dart';
 
 void main() {
   late Directory temporary;
   late File storage;
 
   setUp(() async {
-    temporary = await Directory.systemTemp.createTemp('rodin-colors-test-');
+    temporary = await Directory.systemTemp.createTemp('duchamp-colors-test-');
     storage = File('${temporary.path}/library.json');
   });
 
@@ -17,7 +17,7 @@ void main() {
   });
 
   test('confirmed recents persist, deduplicate, and stay bounded', () async {
-    final RodinSystemColorsLibrary library = RodinSystemColorsLibrary(
+    final DuchampSystemColorsLibrary library = DuchampSystemColorsLibrary(
       storageFile: storage,
     );
     for (int index = 0; index < 10; index++) {
@@ -25,7 +25,7 @@ void main() {
     }
     await library.record(0x100005, 5);
 
-    final RodinSystemColorsLibrary restored = RodinSystemColorsLibrary(
+    final DuchampSystemColorsLibrary restored = DuchampSystemColorsLibrary(
       storageFile: storage,
     );
     await restored.load();
@@ -38,7 +38,7 @@ void main() {
   });
 
   test('saved names replace case-insensitively and can be removed', () async {
-    final RodinSystemColorsLibrary library = RodinSystemColorsLibrary(
+    final DuchampSystemColorsLibrary library = DuchampSystemColorsLibrary(
       storageFile: storage,
     );
     await library.save('Night', 0x112233, 0);
@@ -47,7 +47,7 @@ void main() {
     expect(library.saved.single.seed, 0x445566);
 
     await library.remove(library.saved.single);
-    final RodinSystemColorsLibrary restored = RodinSystemColorsLibrary(
+    final DuchampSystemColorsLibrary restored = DuchampSystemColorsLibrary(
       storageFile: storage,
     );
     await restored.load();
@@ -56,7 +56,7 @@ void main() {
 
   test('malformed or oversized local data is ignored safely', () async {
     await storage.writeAsString('{broken');
-    final RodinSystemColorsLibrary malformed = RodinSystemColorsLibrary(
+    final DuchampSystemColorsLibrary malformed = DuchampSystemColorsLibrary(
       storageFile: storage,
     );
     await malformed.load();
@@ -64,7 +64,7 @@ void main() {
     expect(malformed.saved, isEmpty);
 
     await storage.writeAsString('x' * (16 * 1024 + 1));
-    final RodinSystemColorsLibrary oversized = RodinSystemColorsLibrary(
+    final DuchampSystemColorsLibrary oversized = DuchampSystemColorsLibrary(
       storageFile: storage,
     );
     await oversized.load();

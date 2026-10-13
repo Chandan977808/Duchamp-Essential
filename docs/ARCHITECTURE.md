@@ -1,6 +1,6 @@
 # Architecture
 
-Rodin Essential separates the visual application from all privileged hardware
+Duchamp Essential separates the visual application from all privileged hardware
 operations. The separation is identical in AOSP and root-module deployments; only
 the daemon launcher and state directory change.
 
@@ -13,7 +13,7 @@ Flutter AOT interface
 Rust NativeActivity host
         │ authenticated local IPC, protocol 13.6
         ▼
-Rust rodin_daemon
+Rust duchamp_daemon
         ├── sysfs / procfs / block controls
         ├── Xiaomi touch and display AIDL services
         ├── MediaTek GED and Mali devfreq
@@ -27,14 +27,14 @@ Rust rodin_daemon
 `android:hasCode="false"`. The APK contains no `classes.dex`; its executable
 payload is ARM64 native code:
 
-- `librodin_essential_host.so`
+- `libduchamp_essential_host.so`
 - `libflutter_engine.so`
 - `libapp.so`
 
 The APK uses a regular application UID. It has no shared UID, root launcher,
 privileged permission allowlist, or direct sysfs write path.
 
-In an AOSP integration, its certificate-bound `rodin_app` domain retains the
+In an AOSP integration, its certificate-bound `duchamp_app` domain retains the
 standard `untrusted_app_all` base policy. The dedicated label narrows daemon
 socket ownership; it does not turn the APK into a privileged or system app.
 
@@ -63,32 +63,32 @@ writes hardware nodes, calls vendor AIDL services, verifies readback where the
 driver exposes it, persists accepted settings, and reasserts settings when a
 vendor component rewrites them.
 
-Charging profiles use Rodin's kernel FCC and SIC interfaces directly. A
+Charging profiles use Duchamp's kernel FCC and SIC interfaces directly. A
 power-supply uevent listener restores a fixed profile after a cable reconnect;
 the daemon does not poll or repeatedly overwrite the charger control loop.
 
 The daemon listens on a Linux abstract Unix socket. In an AOSP build, SELinux
-allows only the dedicated `rodin_app` domain to connect in production. The
-`rodin_ctl` client is allowed only on `userdebug` and `eng` builds.
+allows only the dedicated `duchamp_app` domain to connect in production. The
+`duchamp_ctl` client is allowed only on `userdebug` and `eng` builds.
 
 Unix peers validate Linux credentials with `SO_PEERCRED`: the app accepts only
 UID 0, and the daemon accepts only UID 0 or the exact UID Android assigned to
-Rodin Essential. Some root-manager SELinux domains block Unix `connectto` in
+Duchamp Essential. Some root-manager SELinux domains block Unix `connectto` in
 both directions, so the module also binds a root-privileged IPv4 loopback port.
 The app refuses that path unless a neighbouring low-port bind is denied from
 its own UID/SELinux sandbox, and the daemon maps the live client tuple through
 `/proc/net/tcp` to the package UID before accepting a command. A daemon-initiated
 Unix path remains as a compatibility fallback. The root module never patches
 SELinux. AOSP builds use the direct path with a certificate-bound dedicated
-`rodin_app` domain and do not enable the module-only loopback listener.
+`duchamp_app` domain and do not enable the module-only loopback listener.
 
 ## Persistence
 
-The daemon selects its state directory from `RODIN_STATE_DIR`:
+The daemon selects its state directory from `DUCHAMP_STATE_DIR`:
 
-- AOSP init service: `/data/system/rodin-essential`
-- KernelSU Next or Magisk service: `/data/adb/rodin-essential`
-- Development fallback: `/data/adb/rodin-essential`
+- AOSP init service: `/data/system/duchamp-essential`
+- KernelSU Next or Magisk service: `/data/adb/duchamp-essential`
+- Development fallback: `/data/adb/duchamp-essential`
 
 State updates are transactional. The daemon writes `state.conf.tmp` with mode
 0600, synchronizes it, renames it over `state.conf`, and synchronizes the state
@@ -111,7 +111,7 @@ its verified result independently of hardware state. See
 
 ## Touch paths
 
-Rodin Essential first uses Xiaomi's vendor `ITouchFeature` AIDL service, which
+Duchamp Essential first uses Xiaomi's vendor `ITouchFeature` AIDL service, which
 abstracts the supported Goodix and FocalTech panels. A Goodix sysfs path is used
 only as a fallback on ports that omit the AIDL service.
 
@@ -138,13 +138,13 @@ CPU frequency choices come from each policy's live
 `scaling_available_frequencies` table, with `stats/time_in_state` as the kernel
 compatibility fallback. Range and exact-lock requests are applied atomically,
 verified against `scaling_min_freq` and `scaling_max_freq`, and persisted without
-changing the policy governor. On Xiaomi Rodin builds, the daemon updates the
+changing the policy governor. On Xiaomi Duchamp builds, the daemon updates the
 same per-policy `thermal_message/cpu_limits` request used by `mi_thermald` and
 the three-field `powerhal_cpu_ctrl/perfserv_freq` request before writing
 cpufreq. A request is accepted only when the final live range matches. The
 interface reports saved targets separately from effective live limits.
 
-Rodin's normal Xiaomi thermal configuration periodically republishes CPU QoS
+Duchamp's normal Xiaomi thermal configuration periodically republishes CPU QoS
 ceilings, so a reapply timer alone cannot provide a sustained exact lock. Before
 the first custom CPU range, the daemon records `thermal_message/sconfig` and
 selects the vendor-defined mode `6` (`thermal-nolimits.conf`). This removes the

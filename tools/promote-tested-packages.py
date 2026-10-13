@@ -27,7 +27,7 @@ def main():
     builder = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(builder)
     # Never promote a target ROM's complete policy into the public archive.
-    for kind, basename in (("module", "Rodin-Essential-KernelSU-Next-Magisk"),):
+    for kind, basename in (("module", "Duchamp-Essential-KernelSU-Next-Magisk"),):
         source = args.source / f"{basename}-v1.18.4-local-test.zip"
         stage = args.destination / kind
         stage.mkdir()

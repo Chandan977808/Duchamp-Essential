@@ -33,7 +33,7 @@ pub fn phase(
         return 3;
     }
     if let Some(current) = current_ua {
-        // Rodin's battery CURRENT_NOW convention: negative charges the cell.
+        // Duchamp's battery CURRENT_NOW convention: negative charges the cell.
         if current < -100_000 {
             return 7;
         }

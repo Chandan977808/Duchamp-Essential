@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rodin_essential_ui/page_motion.dart';
+import 'package:duchamp_essential_ui/page_motion.dart';
 
 void main() {
   testWidgets('Back moves immediately and reveals a solid destination', (
@@ -15,7 +15,7 @@ void main() {
     addTearDown(controller.dispose);
     await tester.pumpWidget(
       MaterialApp(
-        home: RodinDetailTransition(
+        home: DuchampDetailTransition(
           animation: controller,
           forward: false,
           active: false,
@@ -29,7 +29,7 @@ void main() {
     final translation = tester
         .widget<FractionalTranslation>(
           find.descendant(
-            of: find.byType(RodinDetailTransition),
+            of: find.byType(DuchampDetailTransition),
             matching: find.byType(FractionalTranslation),
           ),
         )
@@ -38,7 +38,7 @@ void main() {
     expect(translation.dx, lessThan(0.6));
     expect(
       find.descendant(
-        of: find.byType(RodinDetailTransition),
+        of: find.byType(DuchampDetailTransition),
         matching: find.byType(Opacity),
       ),
       findsNothing,
@@ -52,7 +52,7 @@ void main() {
   ) async {
     await tester.pumpWidget(
       MaterialApp(
-        home: rodinDetailLayout(
+        home: duchampDetailLayout(
           const ColoredBox(key: ValueKey('destination'), color: Colors.blue),
           const <Widget>[
             ColoredBox(key: ValueKey('departing'), color: Colors.red),
@@ -82,7 +82,7 @@ void main() {
         home: Builder(
           builder: (context) => Scaffold(
             body: TextButton(
-              onPressed: () => showRodinDialog<void>(
+              onPressed: () => showDuchampDialog<void>(
                 context: context,
                 builder: (_) => const Dialog(
                   child: Padding(
@@ -117,7 +117,7 @@ void main() {
         MaterialApp(
           home: MediaQuery(
             data: MediaQueryData(disableAnimations: reduced),
-            child: RodinDetailTransition(
+            child: DuchampDetailTransition(
               animation: AlwaysStoppedAnimation(value),
               active: active,
               child: GestureDetector(
@@ -131,7 +131,7 @@ void main() {
     expect(find.byType(ScaleTransition), findsNothing);
     expect(
       find.descendant(
-        of: find.byType(RodinDetailTransition),
+        of: find.byType(DuchampDetailTransition),
         matching: find.byType(Opacity),
       ),
       findsNothing,
@@ -148,7 +148,7 @@ void main() {
     await tester.pumpWidget(page(true, 0, reduced: true));
     expect(
       find.descendant(
-        of: find.byType(RodinDetailTransition),
+        of: find.byType(DuchampDetailTransition),
         matching: find.byType(Opacity),
       ),
       findsNothing,
@@ -157,7 +157,7 @@ void main() {
       tester
           .widget<FractionalTranslation>(
             find.descendant(
-              of: find.byType(RodinDetailTransition),
+              of: find.byType(DuchampDetailTransition),
               matching: find.byType(FractionalTranslation),
             ),
           )
@@ -171,7 +171,7 @@ void main() {
       const MaterialApp(
         home: Directionality(
           textDirection: TextDirection.rtl,
-          child: RodinDetailTransition(
+          child: DuchampDetailTransition(
             animation: AlwaysStoppedAnimation(0),
             active: true,
             child: SizedBox.expand(),
@@ -183,7 +183,7 @@ void main() {
       tester
           .widget<FractionalTranslation>(
             find.descendant(
-              of: find.byType(RodinDetailTransition),
+              of: find.byType(DuchampDetailTransition),
               matching: find.byType(FractionalTranslation),
             ),
           )

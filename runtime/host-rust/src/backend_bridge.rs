@@ -12,8 +12,8 @@ const SOCK_STREAM: i32 = 1;
 const SOCK_CLOEXEC: i32 = 0x80000;
 const SOL_SOCKET: i32 = 1;
 const SO_PEERCRED: i32 = 17;
-const SOCKET_NAME: &str = "rodin_essentiald_v15";
-const REVERSE_SOCKET_NAME: &str = "rodin_essential_app_v15";
+const SOCKET_NAME: &str = "duchamp_essentiald_v15";
+const REVERSE_SOCKET_NAME: &str = "duchamp_essential_app_v15";
 const LOOPBACK_PORT: u16 = 732;
 const LOOPBACK_PRIVILEGE_PROBE_PORT: u16 = 731;
 const EXTENDED_VALUE_COUNT: usize = 122;
@@ -54,7 +54,7 @@ unsafe extern "C" {
 fn app_log(message: &'static [u8]) {
     #[cfg(target_os = "android")]
     unsafe {
-        let tag = b"RodinEssential\0";
+        let tag = b"DuchampEssential\0";
         let _ = __android_log_write(4, tag.as_ptr().cast(), message.as_ptr().cast());
     }
     #[cfg(not(target_os = "android"))]
@@ -245,7 +245,7 @@ fn reverse_ipc() -> Option<&'static ReverseIpc> {
             let listener = match bind_listener(REVERSE_SOCKET_NAME) {
                 Ok(listener) => listener,
                 Err(error) => {
-                    rodin_action_log(format!("RODIN_REVERSE_IPC_BIND_FAIL error={error}"));
+                    duchamp_action_log(format!("DUCHAMP_REVERSE_IPC_BIND_FAIL error={error}"));
                     return None;
                 }
             };
@@ -266,7 +266,7 @@ fn reverse_ipc() -> Option<&'static ReverseIpc> {
                     }
                     let stream = unsafe { UnixStream::from_raw_fd(fd) };
                     if peer_uid(&stream) != Ok(0) {
-                        rodin_action_log("RODIN_REVERSE_IPC_PEER_REJECT non_root".into());
+                        duchamp_action_log("DUCHAMP_REVERSE_IPC_PEER_REJECT non_root".into());
                         continue;
                     }
                     if sender.send(stream).is_err() {
@@ -300,7 +300,7 @@ fn ensure_daemon_running() {
     let last = LAST_DAEMON_SPAWN.load(std::sync::atomic::Ordering::Acquire);
     if now.saturating_sub(last) >= 3 {
         LAST_DAEMON_SPAWN.store(now, std::sync::atomic::Ordering::Release);
-        app_log(b"RODIN_DAEMON_UNAVAILABLE init_service_required\0");
+        app_log(b"DUCHAMP_DAEMON_UNAVAILABLE init_service_required\0");
     }
 }
 
@@ -472,7 +472,7 @@ fn request(command: &str) -> Result<String, String> {
 /// Bounded framed exchange used by the async Per-App Controls UI only.
 /// Ordinary telemetry keeps its existing lightweight transport/cache.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn rodin_backend_app_controls_exchange(
+pub unsafe extern "C" fn duchamp_backend_app_controls_exchange(
     input: *const u8,
     len: i32,
     output: *mut u8,
@@ -1149,7 +1149,7 @@ fn perform(command: Command) -> Result<(), String> {
     }
 }
 
-fn rodin_command_name(command: &Command) -> &'static str {
+fn duchamp_command_name(command: &Command) -> &'static str {
     match command {
         Command::Refresh => "refresh",
         Command::Charging(_) => "charging",
@@ -1169,11 +1169,11 @@ fn rodin_command_name(command: &Command) -> &'static str {
     }
 }
 
-fn rodin_action_log(message: String) {
+fn duchamp_action_log(message: String) {
     #[cfg(target_os = "android")]
     if let Ok(c) = std::ffi::CString::new(message) {
         unsafe {
-            __android_log_write(4, c"RodinEssential".as_ptr(), c.as_ptr());
+            __android_log_write(4, c"DuchampEssential".as_ptr(), c.as_ptr());
         }
     }
     #[cfg(not(target_os = "android"))]
@@ -1323,13 +1323,13 @@ fn perform_palette(cache: &Cache, op: i32, a: i32, b: i32) {
             for (index, value) in values {
                 cache.extended[index].store(value, Ordering::Release);
             }
-            rodin_action_log(format!("RODIN_SYSTEM_COLORS_PASS operation={op}"));
+            duchamp_action_log(format!("DUCHAMP_SYSTEM_COLORS_PASS operation={op}"));
             2
         }
         Err(error) => {
             cache.extended[error_index].store(palette_error_code(&error), Ordering::Release);
-            rodin_action_log(format!(
-                "RODIN_SYSTEM_COLORS_FAIL operation={op} error={error}"
+            duchamp_action_log(format!(
+                "DUCHAMP_SYSTEM_COLORS_FAIL operation={op} error={error}"
             ));
             -1
         }
@@ -1362,16 +1362,16 @@ fn worker(cache: Arc<Cache>, rx: mpsc::Receiver<Command>) {
                     match refresh(&cache) {
                         Ok(()) => {
                             if !logged_pass {
-                                app_log(b"RODIN_BACKEND_APP=PASS protocol=13.6\0");
+                                app_log(b"DUCHAMP_BACKEND_APP=PASS protocol=13.6\0");
                                 logged_pass = true;
                             }
                             logged_fail = false;
                         }
                         Err(error) => {
                             cache.ready.store(0, Ordering::Release);
-                            rodin_action_log(format!("RODIN_REFRESH_FAIL error={error}"));
+                            duchamp_action_log(format!("DUCHAMP_REFRESH_FAIL error={error}"));
                             if !logged_fail {
-                                app_log(b"RODIN_BACKEND_APP=FAIL socket_or_selinux\0");
+                                app_log(b"DUCHAMP_BACKEND_APP=FAIL socket_or_selinux\0");
                                 logged_fail = true;
                             }
                         }
@@ -1380,7 +1380,7 @@ fn worker(cache: Arc<Cache>, rx: mpsc::Receiver<Command>) {
                     continue;
                 }
 
-                let name = rodin_command_name(&command);
+                let name = duchamp_command_name(&command);
                 let charging_action = matches!(
                     &command,
                     Command::Charging(_) | Command::BypassCharging(_) | Command::Extended(31, _, _)
@@ -1407,15 +1407,15 @@ fn worker(cache: Arc<Cache>, rx: mpsc::Receiver<Command>) {
 
                         match refresh(&cache) {
                             Ok(()) => {
-                                rodin_action_log(format!(
-                                    "RODIN_ACTION_PASS action={name} elapsed_ms={elapsed}"
+                                duchamp_action_log(format!(
+                                    "DUCHAMP_ACTION_PASS action={name} elapsed_ms={elapsed}"
                                 ));
                                 logged_fail = false;
                             }
                             Err(error) => {
                                 cache.ready.store(0, Ordering::Release);
-                                rodin_action_log(format!(
-                                    "RODIN_ACTION_REFRESH_FAIL action={name} elapsed_ms={elapsed} error={error}"
+                                duchamp_action_log(format!(
+                                    "DUCHAMP_ACTION_REFRESH_FAIL action={name} elapsed_ms={elapsed} error={error}"
                                 ));
                             }
                         }
@@ -1432,8 +1432,8 @@ fn worker(cache: Arc<Cache>, rx: mpsc::Receiver<Command>) {
 
                         let _ = refresh(&cache);
 
-                        rodin_action_log(format!(
-                            "RODIN_ACTION_FAIL action={name} elapsed_ms={elapsed} error={error}"
+                        duchamp_action_log(format!(
+                            "DUCHAMP_ACTION_FAIL action={name} elapsed_ms={elapsed} error={error}"
                         ));
                     }
                 }
@@ -1452,7 +1452,7 @@ fn worker(cache: Arc<Cache>, rx: mpsc::Receiver<Command>) {
             match refresh(&cache) {
                 Ok(()) => {
                     if !logged_pass {
-                        app_log(b"RODIN_BACKEND_APP=PASS protocol=13.6\0");
+                        app_log(b"DUCHAMP_BACKEND_APP=PASS protocol=13.6\0");
                         logged_pass = true;
                     }
                     logged_fail = false;
@@ -1460,7 +1460,7 @@ fn worker(cache: Arc<Cache>, rx: mpsc::Receiver<Command>) {
                 Err(_) => {
                     cache.ready.store(0, Ordering::Release);
                     if !logged_fail {
-                        app_log(b"RODIN_BACKEND_APP=FAIL socket_or_selinux\0");
+                        app_log(b"DUCHAMP_BACKEND_APP=FAIL socket_or_selinux\0");
                         logged_fail = true;
                     }
                 }
@@ -1476,7 +1476,7 @@ fn runtime() -> Option<&'static Runtime> {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_start() -> i32 {
+pub extern "C" fn duchamp_backend_start() -> i32 {
     RUNTIME.get_or_init(|| {
         let cache = Arc::new(Cache::new());
         let (tx, rx) = mpsc::channel();
@@ -1521,103 +1521,103 @@ fn send_charging(command: Command) -> i32 {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_refresh() -> i32 {
+pub extern "C" fn duchamp_backend_refresh() -> i32 {
     send(Command::Refresh)
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_ready() -> i32 {
+pub extern "C" fn duchamp_backend_ready() -> i32 {
     runtime()
         .map(|r| r.cache.ready.load(Ordering::Acquire))
         .unwrap_or(-1)
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_get_action_state() -> i32 {
+pub extern "C" fn duchamp_backend_get_action_state() -> i32 {
     runtime()
         .map(|r| r.cache.action_state.load(Ordering::Acquire))
         .unwrap_or(0)
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_get_charging_write_state() -> i32 {
+pub extern "C" fn duchamp_backend_get_charging_write_state() -> i32 {
     runtime()
         .map(|r| r.cache.charging_write_state.load(Ordering::Acquire))
         .unwrap_or(0)
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_get_charging_mode() -> i32 {
+pub extern "C" fn duchamp_backend_get_charging_mode() -> i32 {
     runtime()
         .map(|r| r.cache.charging_mode.load(Ordering::Acquire))
         .unwrap_or(-1)
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_set_charging_mode(v: i32) -> i32 {
+pub extern "C" fn duchamp_backend_set_charging_mode(v: i32) -> i32 {
     if !matches!(v, 0 | 25 | 33 | 65 | 85 | 90) {
         return 0;
     }
     send_charging(Command::Charging(v))
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_set_bypass_charging(v: i32) -> i32 {
+pub extern "C" fn duchamp_backend_set_bypass_charging(v: i32) -> i32 {
     if !matches!(v, 0 | 1) {
         return 0;
     }
     send_charging(Command::BypassCharging(v))
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_get_battery_capacity() -> i32 {
+pub extern "C" fn duchamp_backend_get_battery_capacity() -> i32 {
     runtime()
         .map(|r| r.cache.battery_capacity.load(Ordering::Acquire))
         .unwrap_or(-1)
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_get_battery_temp_tenths_c() -> i32 {
+pub extern "C" fn duchamp_backend_get_battery_temp_tenths_c() -> i32 {
     runtime()
         .map(|r| r.cache.battery_temp.load(Ordering::Acquire))
         .unwrap_or(-1)
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_get_battery_voltage_uv() -> i64 {
+pub extern "C" fn duchamp_backend_get_battery_voltage_uv() -> i64 {
     runtime()
         .map(|r| r.cache.battery_voltage_uv.load(Ordering::Acquire))
         .unwrap_or(-1)
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_get_battery_current_ua() -> i64 {
+pub extern "C" fn duchamp_backend_get_battery_current_ua() -> i64 {
     runtime()
         .map(|r| r.cache.battery_current_ua.load(Ordering::Acquire))
         .unwrap_or(i64::MIN)
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_get_battery_status() -> i32 {
+pub extern "C" fn duchamp_backend_get_battery_status() -> i32 {
     runtime()
         .map(|r| r.cache.battery_status.load(Ordering::Acquire))
         .unwrap_or(-1)
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_get_battery_health() -> i32 {
+pub extern "C" fn duchamp_backend_get_battery_health() -> i32 {
     runtime()
         .map(|r| r.cache.battery_health.load(Ordering::Acquire))
         .unwrap_or(-1)
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_get_usb_online() -> i32 {
+pub extern "C" fn duchamp_backend_get_usb_online() -> i32 {
     runtime()
         .map(|r| r.cache.usb_online.load(Ordering::Acquire))
         .unwrap_or(-1)
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_get_usb_type() -> i32 {
+pub extern "C" fn duchamp_backend_get_usb_type() -> i32 {
     runtime()
         .map(|r| r.cache.usb_type.load(Ordering::Acquire))
         .unwrap_or(-1)
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_get_cpu_online_mask() -> u32 {
+pub extern "C" fn duchamp_backend_get_cpu_online_mask() -> u32 {
     runtime()
         .map(|r| r.cache.cpu_online_mask.load(Ordering::Acquire))
         .unwrap_or(0)
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_get_cpu_freq_khz(index: u32) -> i64 {
+pub extern "C" fn duchamp_backend_get_cpu_freq_khz(index: u32) -> i64 {
     if index >= 8 {
         -1
     } else {
@@ -1627,7 +1627,7 @@ pub extern "C" fn rodin_backend_get_cpu_freq_khz(index: u32) -> i64 {
     }
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_get_cpu_governor(policy: i32) -> i32 {
+pub extern "C" fn duchamp_backend_get_cpu_governor(policy: i32) -> i32 {
     runtime()
         .map(|r| match policy {
             0 => r.cache.cpu_gov0.load(Ordering::Acquire),
@@ -1638,11 +1638,11 @@ pub extern "C" fn rodin_backend_get_cpu_governor(policy: i32) -> i32 {
         .unwrap_or(-1)
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_set_cpu_governor(policy: i32, code: i32) -> i32 {
+pub extern "C" fn duchamp_backend_set_cpu_governor(policy: i32, code: i32) -> i32 {
     send(Command::CpuGovernor(policy, code))
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_get_cpu_available_count(policy: i32) -> i32 {
+pub extern "C" fn duchamp_backend_get_cpu_available_count(policy: i32) -> i32 {
     let Some(slot) = cpu_policy_slot(policy) else {
         return 0;
     };
@@ -1653,7 +1653,7 @@ pub extern "C" fn rodin_backend_get_cpu_available_count(policy: i32) -> i32 {
         .unwrap_or(0)
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_get_cpu_available_freq(policy: i32, index: i32) -> i32 {
+pub extern "C" fn duchamp_backend_get_cpu_available_freq(policy: i32, index: i32) -> i32 {
     let Some(slot) = cpu_policy_slot(policy) else {
         return -1;
     };
@@ -1667,115 +1667,115 @@ pub extern "C" fn rodin_backend_get_cpu_available_freq(policy: i32, index: i32) 
         .unwrap_or(-1)
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_get_gpu_governor() -> i32 {
+pub extern "C" fn duchamp_backend_get_gpu_governor() -> i32 {
     runtime()
         .map(|r| r.cache.gpu_gov.load(Ordering::Acquire))
         .unwrap_or(-1)
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_set_gpu_governor(code: i32) -> i32 {
+pub extern "C" fn duchamp_backend_set_gpu_governor(code: i32) -> i32 {
     send(Command::GpuGovernor(code))
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_get_ufs_scheduler() -> i32 {
+pub extern "C" fn duchamp_backend_get_ufs_scheduler() -> i32 {
     runtime()
         .map(|r| r.cache.io_scheduler.load(Ordering::Acquire))
         .unwrap_or(-1)
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_set_ufs_scheduler(code: i32) -> i32 {
+pub extern "C" fn duchamp_backend_set_ufs_scheduler(code: i32) -> i32 {
     send(Command::IoScheduler(code))
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_get_touch_hal() -> i32 {
+pub extern "C" fn duchamp_backend_get_touch_hal() -> i32 {
     runtime()
         .map(|r| r.cache.touch_hal.load(Ordering::Acquire))
         .unwrap_or(0)
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_get_display_hal() -> i32 {
+pub extern "C" fn duchamp_backend_get_display_hal() -> i32 {
     runtime()
         .map(|r| r.cache.display_hal.load(Ordering::Acquire))
         .unwrap_or(0)
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_get_touch_state() -> i32 {
+pub extern "C" fn duchamp_backend_get_touch_state() -> i32 {
     runtime()
         .map(|r| r.cache.touch_state.load(Ordering::Acquire))
         .unwrap_or(-1)
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_set_touch_state(v: i32) -> i32 {
+pub extern "C" fn duchamp_backend_set_touch_state(v: i32) -> i32 {
     send(Command::Touch(v))
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_get_display_color() -> i32 {
+pub extern "C" fn duchamp_backend_get_display_color() -> i32 {
     runtime()
         .map(|r| r.cache.display_color.load(Ordering::Acquire))
         .unwrap_or(-1)
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_set_display_color(v: i32) -> i32 {
+pub extern "C" fn duchamp_backend_set_display_color(v: i32) -> i32 {
     send(Command::DisplayColor(v))
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_get_display_temp() -> i32 {
+pub extern "C" fn duchamp_backend_get_display_temp() -> i32 {
     runtime()
         .map(|r| r.cache.display_temp.load(Ordering::Acquire))
         .unwrap_or(-1)
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_set_display_temp(v: i32) -> i32 {
+pub extern "C" fn duchamp_backend_set_display_temp(v: i32) -> i32 {
     send(Command::DisplayTemp(v))
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_get_sunlight() -> i32 {
+pub extern "C" fn duchamp_backend_get_sunlight() -> i32 {
     runtime()
         .map(|r| r.cache.sunlight.load(Ordering::Acquire))
         .unwrap_or(-1)
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_set_sunlight(v: i32) -> i32 {
+pub extern "C" fn duchamp_backend_set_sunlight(v: i32) -> i32 {
     send(Command::Sunlight(v))
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_get_silky() -> i32 {
+pub extern "C" fn duchamp_backend_get_silky() -> i32 {
     runtime()
         .map(|r| r.cache.silky.load(Ordering::Acquire))
         .unwrap_or(-1)
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_set_silky(v: i32) -> i32 {
+pub extern "C" fn duchamp_backend_set_silky(v: i32) -> i32 {
     send(Command::Silky(v))
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_get_video() -> i32 {
+pub extern "C" fn duchamp_backend_get_video() -> i32 {
     runtime()
         .map(|r| r.cache.video.load(Ordering::Acquire))
         .unwrap_or(-1)
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_set_video(v: i32) -> i32 {
+pub extern "C" fn duchamp_backend_set_video(v: i32) -> i32 {
     send(Command::Video(v))
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_get_dolby() -> i32 {
+pub extern "C" fn duchamp_backend_get_dolby() -> i32 {
     runtime()
         .map(|r| r.cache.dolby.load(Ordering::Acquire))
         .unwrap_or(-1)
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_set_dolby(v: i32) -> i32 {
+pub extern "C" fn duchamp_backend_set_dolby(v: i32) -> i32 {
     send(Command::Dolby(v))
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_get_performance_profile() -> i32 {
+pub extern "C" fn duchamp_backend_get_performance_profile() -> i32 {
     runtime()
         .map(|r| r.cache.performance.load(Ordering::Acquire))
         .unwrap_or(-1)
 }
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_set_performance_profile(v: i32) -> i32 {
+pub extern "C" fn duchamp_backend_set_performance_profile(v: i32) -> i32 {
     if let Some(r) = runtime() {
         r.cache.performance.store(v, Ordering::Release);
         match v {
@@ -1817,12 +1817,12 @@ pub extern "C" fn rodin_backend_set_performance_profile(v: i32) -> i32 {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_open_support_link(v: i32) -> i32 {
-    i32::from(crate::rodin_host_open_url_jni(v))
+pub extern "C" fn duchamp_backend_open_support_link(v: i32) -> i32 {
+    i32::from(crate::duchamp_host_open_url_jni(v))
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_extended_get(index: i32) -> i32 {
+pub extern "C" fn duchamp_backend_extended_get(index: i32) -> i32 {
     if index < 0 || index as usize >= EXTENDED_VALUE_COUNT {
         return -1;
     }
@@ -1833,7 +1833,7 @@ pub extern "C" fn rodin_backend_extended_get(index: i32) -> i32 {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rodin_backend_extended_set(op: i32, a: i32, b: i32) -> i32 {
+pub extern "C" fn duchamp_backend_extended_set(op: i32, a: i32, b: i32) -> i32 {
     if op == 31 {
         if !matches!(a, 0 | 20 | 40 | 80 | 90) {
             return 0;

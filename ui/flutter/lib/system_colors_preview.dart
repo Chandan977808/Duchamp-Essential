@@ -4,7 +4,7 @@ import 'dart:isolate';
 import 'package:flutter/material.dart';
 import 'package:material_color_utilities/material_color_utilities.dart';
 
-typedef RodinPaletteKey = (int seed, int style, bool dark);
+typedef DuchampPaletteKey = (int seed, int style, bool dark);
 
 const List<DynamicSchemeVariant> _variants = <DynamicSchemeVariant>[
   DynamicSchemeVariant.tonalSpot,
@@ -18,7 +18,7 @@ const List<DynamicSchemeVariant> _variants = <DynamicSchemeVariant>[
 
 // Send only primitive colors across the isolate boundary. No widget, native
 // handle, backend connection or UI state is captured by the worker.
-List<int> _generatePalette(RodinPaletteKey key) {
+List<int> _generatePalette(DuchampPaletteKey key) {
   final (int seed, int style, bool dark) = key;
   final ColorScheme scheme = ColorScheme.fromSeed(
     seedColor: Color(0xff000000 | seed),
@@ -78,7 +78,7 @@ List<int> _generatePalette(RodinPaletteKey key) {
   return List<int>.unmodifiable(result);
 }
 
-ColorScheme rodinPreviewScheme(List<int> colors, bool dark) {
+ColorScheme duchampPreviewScheme(List<int> colors, bool dark) {
   if (colors.length < 12) throw const FormatException('Invalid preview');
   return (dark ? const ColorScheme.dark() : const ColorScheme.light()).copyWith(
     surfaceContainerLow: Color(colors[0]),
@@ -96,7 +96,7 @@ ColorScheme rodinPreviewScheme(List<int> colors, bool dark) {
   );
 }
 
-List<List<int>> rodinPreviewTonalFamilies(List<int> colors) {
+List<List<int>> duchampPreviewTonalFamilies(List<int> colors) {
   if (colors.length != 77) throw const FormatException('Invalid tonal palette');
   return List<List<int>>.generate(
     5,
@@ -111,7 +111,7 @@ void _paletteWorker(SendPort replies) {
   final ReceivePort requests = ReceivePort();
   replies.send(requests.sendPort);
   requests.listen((dynamic message) {
-    final (int id, RodinPaletteKey key) = message as (int, RodinPaletteKey);
+    final (int id, DuchampPaletteKey key) = message as (int, DuchampPaletteKey);
     try {
       replies.send(<Object>[id, _generatePalette(key)]);
     } catch (error) {
@@ -122,7 +122,7 @@ void _paletteWorker(SendPort replies) {
 
 /// A single on-demand worker for the visible preview. It has no timer or
 /// background system writes and is stopped when the color screen is closed.
-final class RodinPalettePreviewWorker {
+final class DuchampPalettePreviewWorker {
   ReceivePort? _events;
   Isolate? _isolate;
   SendPort? _requests;
@@ -145,7 +145,7 @@ final class RodinPalettePreviewWorker {
           events.sendPort,
           onError: events.sendPort,
           onExit: events.sendPort,
-          debugName: 'Rodin palette preview',
+          debugName: 'Duchamp palette preview',
         ).then((Isolate isolate) {
           if (_disposed) {
             isolate.kill(priority: Isolate.immediate);
@@ -185,7 +185,7 @@ final class RodinPalettePreviewWorker {
     _pending.clear();
   }
 
-  Future<List<int>> generate(RodinPaletteKey key) async {
+  Future<List<int>> generate(DuchampPaletteKey key) async {
     await _start();
     if (_disposed) throw StateError('Preview worker is closed');
     if (_failure != null) throw _failure!;

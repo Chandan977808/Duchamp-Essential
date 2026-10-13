@@ -19,7 +19,7 @@ class PolicyMergeTest(unittest.TestCase):
         output, count = module.exception('(neverallow forbidden self (capability (sys_ptrace sys_admin dac_override)))')
         self.assertEqual(count, 1)
         self.assertIn('(neverallow forbidden self (capability (sys_admin)))', output)
-        self.assertIn('(and (forbidden) (not (rodin_daemon)))', output)
+        self.assertIn('(and (forbidden) (not (duchamp_daemon)))', output)
         self.assertIn('(capability (sys_ptrace dac_override))', output)
 
     def test_other_neverallows_unchanged(self):
@@ -31,7 +31,7 @@ class PolicyMergeTest(unittest.TestCase):
     def test_no_numbered_attribute_assumptions(self):
         output, count = module.exception('(neverallow base_typeattr_987 self (capability (sys_ptrace)))')
         self.assertEqual(count, 1)
-        self.assertIn('(and (base_typeattr_987) (not (rodin_daemon)))', output)
+        self.assertIn('(and (base_typeattr_987) (not (duchamp_daemon)))', output)
 
     def test_malformed_input_rejected(self):
         for text in ('(type x', ')', 'unexpected'):

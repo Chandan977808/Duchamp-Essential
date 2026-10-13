@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rodin_essential_ui/main.dart';
+import 'package:duchamp_essential_ui/main.dart';
 
 void main() {
   for (final Brightness brightness in Brightness.values) {

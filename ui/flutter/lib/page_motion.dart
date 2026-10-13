@@ -4,7 +4,7 @@ import 'dart:async';
 
 /// One restrained motion vocabulary. NEESCHAL: a control should feel alive,
 /// but it should never make the user wait for the decoration to finish.
-class RodinMotion {
+class DuchampMotion {
   static final SpringDescription settle = SpringDescription.withDampingRatio(
     mass: 1,
     stiffness: 500,
@@ -26,7 +26,7 @@ class RodinMotion {
   );
 }
 
-class RodinBackMotion {
+class DuchampBackMotion {
   static final ValueNotifier<double> progress = ValueNotifier<double>(0);
   static bool nested = false;
   static bool rightEdge = false;
@@ -36,7 +36,7 @@ class RodinBackMotion {
 /// Bounded full-screen preview, shared by the gesture and its release animation.
 /// A 90% surface leaves room for an 8dp edge gap; it must not follow the finger
 /// all the way off-screen before Android has decided whether Back commits.
-class RodinBackGeometry {
+class DuchampBackGeometry {
   static double eased(double progress) =>
       Curves.easeOutCubic.transform(progress.clamp(0.0, 1.0));
   static double scale(double progress) => 1 - 0.10 * eased(progress);
@@ -50,8 +50,8 @@ class RodinBackGeometry {
 /// Spend the opening frame on visible controls, not speculative scroll cache.
 /// This inherited value changes only at the boundaries of a transition; it
 /// does not ask descendants to rebuild for every animation tick.
-class RodinMotionViewportScope extends InheritedWidget {
-  const RodinMotionViewportScope({
+class DuchampMotionViewportScope extends InheritedWidget {
+  const DuchampMotionViewportScope({
     required this.inFlight,
     required super.child,
     super.key,
@@ -60,7 +60,7 @@ class RodinMotionViewportScope extends InheritedWidget {
 
   static bool inFlightOf(BuildContext context) =>
       context
-          .dependOnInheritedWidgetOfExactType<RodinMotionViewportScope>()
+          .dependOnInheritedWidgetOfExactType<DuchampMotionViewportScope>()
           ?.inFlight ??
       false;
 
@@ -68,15 +68,15 @@ class RodinMotionViewportScope extends InheritedWidget {
       inFlightOf(context) ? 0 : 250;
 
   @override
-  bool updateShouldNotify(RodinMotionViewportScope oldWidget) =>
+  bool updateShouldNotify(DuchampMotionViewportScope oldWidget) =>
       oldWidget.inFlight != inFlight;
 }
 
 /// Keep receiving real data while a page is moving or hidden, but do not
 /// rebuild its expensive controls for each live sample. On return to rest,
 /// render the latest reading immediately; this never queues hardware writes.
-class RodinMotionStreamBuilder<T> extends StatefulWidget {
-  const RodinMotionStreamBuilder({
+class DuchampMotionStreamBuilder<T> extends StatefulWidget {
+  const DuchampMotionStreamBuilder({
     required this.stream,
     required this.readLatest,
     required this.builder,
@@ -87,12 +87,12 @@ class RodinMotionStreamBuilder<T> extends StatefulWidget {
   final Widget Function(T value) builder;
 
   @override
-  State<RodinMotionStreamBuilder<T>> createState() =>
-      _RodinMotionStreamBuilderState<T>();
+  State<DuchampMotionStreamBuilder<T>> createState() =>
+      _DuchampMotionStreamBuilderState<T>();
 }
 
-class _RodinMotionStreamBuilderState<T>
-    extends State<RodinMotionStreamBuilder<T>> {
+class _DuchampMotionStreamBuilderState<T>
+    extends State<DuchampMotionStreamBuilder<T>> {
   late T _latest;
   StreamSubscription<T>? _subscription;
   bool _canPresent = false;
@@ -117,7 +117,7 @@ class _RodinMotionStreamBuilderState<T>
   }
 
   @override
-  void didUpdateWidget(RodinMotionStreamBuilder<T> oldWidget) {
+  void didUpdateWidget(DuchampMotionStreamBuilder<T> oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.stream != widget.stream) {
       _subscription?.cancel();
@@ -131,7 +131,7 @@ class _RodinMotionStreamBuilderState<T>
     super.didChangeDependencies();
     _canPresent =
         TickerMode.valuesOf(context).enabled &&
-        !RodinMotionViewportScope.inFlightOf(context);
+        !DuchampMotionViewportScope.inFlightOf(context);
     if (_canPresent) _latest = widget.readLatest();
   }
 
@@ -148,8 +148,8 @@ class _RodinMotionStreamBuilderState<T>
 /// Flutter's texture-backed snapshot keeps scale animations from repeatedly
 /// rasterizing every shadow, blur and glyph. The real subtree stays mounted;
 /// its live paint resumes immediately when this bounded motion finishes.
-class RodinSurfaceSnapshot extends StatefulWidget {
-  const RodinSurfaceSnapshot({
+class DuchampSurfaceSnapshot extends StatefulWidget {
+  const DuchampSurfaceSnapshot({
     required this.enabled,
     required this.child,
     super.key,
@@ -157,10 +157,10 @@ class RodinSurfaceSnapshot extends StatefulWidget {
   final bool enabled;
   final Widget child;
   @override
-  State<RodinSurfaceSnapshot> createState() => _RodinSurfaceSnapshotState();
+  State<DuchampSurfaceSnapshot> createState() => _DuchampSurfaceSnapshotState();
 }
 
-class _RodinSurfaceSnapshotState extends State<RodinSurfaceSnapshot> {
+class _DuchampSurfaceSnapshotState extends State<DuchampSurfaceSnapshot> {
   final SnapshotController controller = SnapshotController();
   bool _painted = false;
 
@@ -178,7 +178,7 @@ class _RodinSurfaceSnapshotState extends State<RodinSurfaceSnapshot> {
   }
 
   @override
-  void didUpdateWidget(RodinSurfaceSnapshot oldWidget) {
+  void didUpdateWidget(DuchampSurfaceSnapshot oldWidget) {
     super.didUpdateWidget(oldWidget);
     controller.allowSnapshotting = _painted && widget.enabled;
   }
@@ -199,8 +199,8 @@ class _RodinSurfaceSnapshotState extends State<RodinSurfaceSnapshot> {
 }
 
 /// Progress comes from Android's edge gesture, not a simulated timed swipe.
-class RodinPredictivePlane extends StatelessWidget {
-  const RodinPredictivePlane({
+class DuchampPredictivePlane extends StatelessWidget {
+  const DuchampPredictivePlane({
     required this.child,
     this.destination,
     this.nested = false,
@@ -211,13 +211,13 @@ class RodinPredictivePlane extends StatelessWidget {
   final bool nested;
   @override
   Widget build(BuildContext context) => ValueListenableBuilder<double>(
-    valueListenable: RodinBackMotion.progress,
+    valueListenable: DuchampBackMotion.progress,
     child: child,
     builder: (context, _, child) {
       final value =
-          RodinBackMotion.nested == nested &&
+          DuchampBackMotion.nested == nested &&
               !MediaQuery.disableAnimationsOf(context)
-          ? RodinBackMotion.progress.value
+          ? DuchampBackMotion.progress.value
           : 0.0;
       final color = Theme.of(context).brightness == Brightness.dark
           ? const Color(0xFF090C11)
@@ -236,26 +236,26 @@ class RodinPredictivePlane extends StatelessWidget {
             ),
           Transform.translate(
             offset: Offset(
-              RodinBackGeometry.shift(
+              DuchampBackGeometry.shift(
                 MediaQuery.sizeOf(context).width,
                 value,
-                RodinBackMotion.rightEdge,
+                DuchampBackMotion.rightEdge,
               ),
               0,
             ),
             child: Transform.scale(
-              scale: RodinBackGeometry.scale(value),
+              scale: DuchampBackGeometry.scale(value),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(
-                  RodinBackGeometry.radius(value),
+                  DuchampBackGeometry.radius(value),
                 ),
-                child: RodinSurfaceSnapshot(
+                child: DuchampSurfaceSnapshot(
                   enabled: value > 0,
-                  child: RodinMotionViewportScope(
+                  child: DuchampMotionViewportScope(
                     inFlight:
                         (!MediaQuery.disableAnimationsOf(context) &&
-                            RodinBackMotion.progress.value > 0) ||
-                        RodinMotionViewportScope.inFlightOf(context),
+                            DuchampBackMotion.progress.value > 0) ||
+                        DuchampMotionViewportScope.inFlightOf(context),
                     child: Material(color: color, child: child),
                   ),
                 ),
@@ -270,15 +270,15 @@ class RodinPredictivePlane extends StatelessWidget {
 
 /// Short, bounded arrivals; controls remain hit-testable during the reveal.
 /// No ticker survives at rest, and reduced-motion skips both delay and spring.
-class RodinArrival extends StatefulWidget {
-  const RodinArrival({required this.child, required this.order, super.key});
+class DuchampArrival extends StatefulWidget {
+  const DuchampArrival({required this.child, required this.order, super.key});
   final Widget child;
   final int order;
   @override
-  State<RodinArrival> createState() => _RodinArrivalState();
+  State<DuchampArrival> createState() => _DuchampArrivalState();
 }
 
-class _RodinArrivalState extends State<RodinArrival>
+class _DuchampArrivalState extends State<DuchampArrival>
     with SingleTickerProviderStateMixin {
   late final AnimationController motion;
   Timer? delay;
@@ -293,7 +293,7 @@ class _RodinArrivalState extends State<RodinArrival>
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (MediaQuery.disableAnimationsOf(context) ||
-        RodinMotionViewportScope.inFlightOf(context) ||
+        DuchampMotionViewportScope.inFlightOf(context) ||
         !TickerMode.valuesOf(context).enabled) {
       delay?.cancel();
       motion.stop();
@@ -306,7 +306,7 @@ class _RodinArrivalState extends State<RodinArrival>
     delay = Timer(Duration(milliseconds: (widget.order * 8).clamp(0, 48)), () {
       if (mounted)
         motion.animateWith(
-          SpringSimulation(RodinMotion.reveal, motion.value, 1, 0),
+          SpringSimulation(DuchampMotion.reveal, motion.value, 1, 0),
         );
     });
   }
@@ -336,12 +336,12 @@ class _RodinArrivalState extends State<RodinArrival>
   );
 }
 
-class RodinScrollPhysics extends BouncingScrollPhysics {
-  const RodinScrollPhysics({super.parent})
+class DuchampScrollPhysics extends BouncingScrollPhysics {
+  const DuchampScrollPhysics({super.parent})
     : super(decelerationRate: ScrollDecelerationRate.fast);
   @override
-  RodinScrollPhysics applyTo(ScrollPhysics? ancestor) =>
-      RodinScrollPhysics(parent: buildParent(ancestor));
+  DuchampScrollPhysics applyTo(ScrollPhysics? ancestor) =>
+      DuchampScrollPhysics(parent: buildParent(ancestor));
   @override
   SpringDescription get spring => SpringDescription.withDampingRatio(
     mass: 0.65,
@@ -355,38 +355,38 @@ class RodinScrollPhysics extends BouncingScrollPhysics {
       super.carriedMomentum(velocity).clamp(-3500.0, 3500.0);
 }
 
-class RodinScrollBehavior extends MaterialScrollBehavior {
-  const RodinScrollBehavior();
+class DuchampScrollBehavior extends MaterialScrollBehavior {
+  const DuchampScrollBehavior();
   @override
   ScrollPhysics getScrollPhysics(BuildContext context) =>
-      const RodinScrollPhysics();
+      const DuchampScrollPhysics();
 }
 
-class RodinScrollMotionScope extends InheritedWidget {
-  const RodinScrollMotionScope({
+class DuchampScrollMotionScope extends InheritedWidget {
+  const DuchampScrollMotionScope({
     required this.velocity,
     required super.child,
     super.key,
   });
   final ValueNotifier<double> velocity;
   static ValueNotifier<double>? of(BuildContext context) => context
-      .dependOnInheritedWidgetOfExactType<RodinScrollMotionScope>()
+      .dependOnInheritedWidgetOfExactType<DuchampScrollMotionScope>()
       ?.velocity;
   @override
-  bool updateShouldNotify(RodinScrollMotionScope oldWidget) =>
+  bool updateShouldNotify(DuchampScrollMotionScope oldWidget) =>
       velocity != oldWidget.velocity;
 }
 
 /// Velocity supplies the impulse; the spring supplies the return to rest.
 /// Cached content never rebuilds for these transforms. No perpetual ticker.
-class RodinInertiaLayer extends StatefulWidget {
-  const RodinInertiaLayer({required this.child, super.key});
+class DuchampInertiaLayer extends StatefulWidget {
+  const DuchampInertiaLayer({required this.child, super.key});
   final Widget child;
   @override
-  State<RodinInertiaLayer> createState() => _RodinInertiaLayerState();
+  State<DuchampInertiaLayer> createState() => _DuchampInertiaLayerState();
 }
 
-class _RodinInertiaLayerState extends State<RodinInertiaLayer>
+class _DuchampInertiaLayerState extends State<DuchampInertiaLayer>
     with SingleTickerProviderStateMixin {
   late final AnimationController _depth = AnimationController.unbounded(
     vsync: this,
@@ -397,7 +397,7 @@ class _RodinInertiaLayerState extends State<RodinInertiaLayer>
   void didChangeDependencies() {
     super.didChangeDependencies();
     _reduced = MediaQuery.disableAnimationsOf(context);
-    final next = RodinScrollMotionScope.of(context);
+    final next = DuchampScrollMotionScope.of(context);
     if (next != _velocity) {
       _velocity?.removeListener(_followVelocity);
       _velocity = next;
@@ -452,8 +452,8 @@ class _RodinInertiaLayerState extends State<RodinInertiaLayer>
 
 /// Sample a damped spring instead of stacking unrelated easing curves.
 /// Position may settle just past the target; opacity never overshoots.
-class RodinSpringCurve extends Curve {
-  const RodinSpringCurve();
+class DuchampSpringCurve extends Curve {
+  const DuchampSpringCurve();
   static final SpringSimulation _spring = SpringSimulation(
     const SpringDescription(mass: 1, stiffness: 330, damping: 29),
     0,
@@ -466,7 +466,7 @@ class RodinSpringCurve extends Curve {
 
 /// One restrained reveal for confirmation dialogs. Keep inherited appearance
 /// captured at the caller, rather than silently falling back to theme defaults.
-Future<T?> showRodinDialog<T>({
+Future<T?> showDuchampDialog<T>({
   required BuildContext context,
   required WidgetBuilder builder,
 }) {
@@ -491,8 +491,8 @@ Future<T?> showRodinDialog<T>({
           child: child,
           builder: (context, child) {
             final progress = animation.status == AnimationStatus.reverse
-                ? 1 - const RodinSpringCurve().transform(1 - animation.value)
-                : const RodinSpringCurve().transform(animation.value);
+                ? 1 - const DuchampSpringCurve().transform(1 - animation.value)
+                : const DuchampSpringCurve().transform(animation.value);
             return Opacity(
               opacity: progress.clamp(0.0, 1.0),
               child: FractionalTranslation(
@@ -510,7 +510,7 @@ Future<T?> showRodinDialog<T>({
 
 /// Keep the departing detail above the destination during Back, so its solid
 /// surface reveals the destination continuously instead of fading text together.
-Widget rodinDetailLayout(
+Widget duchampDetailLayout(
   Widget? current,
   List<Widget> previous, {
   required bool forward,
@@ -525,8 +525,8 @@ Widget rodinDetailLayout(
 
 /// A solid page plane: outgoing text must never blend with the page underneath.
 /// Back returns along the same path; nested pages order the departing page last.
-class RodinDetailTransition extends StatelessWidget {
-  const RodinDetailTransition({
+class DuchampDetailTransition extends StatelessWidget {
+  const DuchampDetailTransition({
     required this.animation,
     required this.child,
     required this.active,
@@ -557,13 +557,13 @@ class RodinDetailTransition extends StatelessWidget {
     // Capture the gesture's final geometry once for this outgoing transition;
     // later gestures must not change a page which is already departing.
     final committed = !forward && !active
-        ? RodinBackMotion.committedProgress
+        ? DuchampBackMotion.committedProgress
         : 0.0;
-    final gestureEdge = RodinBackMotion.rightEdge ? -1.0 : 1.0;
+    final gestureEdge = DuchampBackMotion.rightEdge ? -1.0 : 1.0;
     final width = MediaQuery.sizeOf(context).width;
     final startShift = width > 0
-        ? RodinBackGeometry.maxShift(width) *
-              RodinBackGeometry.eased(committed) /
+        ? DuchampBackGeometry.maxShift(width) *
+              DuchampBackGeometry.eased(committed) /
               width
         : 0.0;
     return IgnorePointer(
@@ -608,23 +608,23 @@ class RodinDetailTransition extends StatelessWidget {
                   scale: reduced
                       ? 1
                       : committed > 0
-                      ? RodinBackGeometry.scale(committed)
+                      ? DuchampBackGeometry.scale(committed)
                       : 0.985 + 0.015 * progress,
                   alignment: Alignment.center,
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(
                       committed > 0
-                          ? RodinBackGeometry.radius(committed) +
-                                (20 - RodinBackGeometry.radius(committed)) *
+                          ? DuchampBackGeometry.radius(committed) +
+                                (20 - DuchampBackGeometry.radius(committed)) *
                                     (1 - progress)
                           : 12 * (1 - progress).clamp(0.0, 1.0),
                     ),
-                    child: RodinSurfaceSnapshot(
+                    child: DuchampSurfaceSnapshot(
                       enabled: inFlight,
-                      child: RodinMotionViewportScope(
+                      child: DuchampMotionViewportScope(
                         inFlight:
                             inFlight ||
-                            RodinMotionViewportScope.inFlightOf(context),
+                            DuchampMotionViewportScope.inFlightOf(context),
                         child: child!,
                       ),
                     ),

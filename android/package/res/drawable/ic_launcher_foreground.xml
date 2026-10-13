@@ -7,10 +7,10 @@
     <group
         android:pivotX="54"
         android:pivotY="54">
-        <!-- Clean Crisp Solid White "R" Monogram -->
+        <!-- Clean Crisp Solid White "D" Monogram -->
         <path
             android:fillColor="#FFFFFFFF"
             android:fillType="evenOdd"
-            android:pathData="M33,78 L33,33 C33,31 35,30 37,30 L61,30 C74,30 74,54 61,54 L45,54 L62,76 C63,78 62,79 59,79 L48,79 L35,59 L35,78 Z M45,38 L59,38 C65,38 65,46 59,46 L45,46 Z" />
+            android:pathData="M33,30 L47,30 C64,30 75,40 75,54 C75,68 64,78 47,78 L33,78 Z M45,38 L47,38 C57,38 66,45 66,54 C66,63 57,70 47,70 L45,70 Z" />
     </group>
 </vector>

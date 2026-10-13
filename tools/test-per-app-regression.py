@@ -106,10 +106,10 @@ try:
                 assert live.shell('cat /sys/devices/system/cpu/online', root=True) == '0,2-7'
             if 'cpu' in controls:
                 assert live.shell('cat /sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq', root=True) == '1200000'
-            live.shell('am force-stop io.github.neeschal.rodinessential')
+            live.shell('am force-stop com.saan.duchamp.essential')
             assert (live.ctl('GET app.controls').get('owner') or {}).get('package') == package, 'UI closure lost profile'
             if len(controls) > 1:
-                pid = live.shell('pidof rodin_daemon', root=True)
+                pid = live.shell('pidof duchamp_daemon', root=True)
                 live.shell('kill ' + pid, root=True)
                 deadline = time.monotonic() + 30
                 while time.monotonic() < deadline:
@@ -144,7 +144,7 @@ finally:
     else:
         live.ctl('ACTION app.reset 0 ' + package)
     live.ctl('SET app.enabled ' + ('1' if initial['enabled'] else '0'))
-    live.shell('am start -n io.github.neeschal.rodinessential/.RodinActivity')
+    live.shell('am start -n com.saan.duchamp.essential/.DuchampActivity')
     after = live.preferences()
     for key in ['touch', 'perf', 'cpu_online_mask', 'cpu_manual', 'cpu_min_freq0', 'cpu_max_freq0']:
         assert before.get(key) == after.get(key), 'Saved global preference changed: ' + key

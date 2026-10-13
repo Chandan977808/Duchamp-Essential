@@ -15,7 +15,7 @@ def main():
     # Restrict this maintenance command to generated output, never ROM sources.
     directory.relative_to(project / "out/local-test-packages")
     kit = directory / "rom-kit"
-    archive_path = directory / "Rodin-Essential-Stock-EEA-v1.18.4-local-test.zip"
+    archive_path = directory / "Duchamp-Essential-Stock-EEA-v1.18.4-local-test.zip"
     assert kit.is_dir() and archive_path.is_file()
     spec = importlib.util.spec_from_file_location("kit_builder", project / "tools/prepare-stock-rom-test-kit.py")
     builder = importlib.util.module_from_spec(spec)

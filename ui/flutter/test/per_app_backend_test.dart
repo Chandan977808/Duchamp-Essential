@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rodin_essential_ui/backend/per_app_backend.dart';
+import 'package:duchamp_essential_ui/backend/per_app_backend.dart';
 
 void main() {
   test(

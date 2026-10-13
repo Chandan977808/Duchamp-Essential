@@ -76,11 +76,11 @@ class _SubsystemClocksScreenState extends State<SubsystemClocksScreen>
           _state = Map<String, dynamic>.from(data as Map);
           _error = null;
         });
-      RodinHaptics.confirm();
+      DuchampHaptics.confirm();
       return true;
     } catch (e) {
       if (mounted) setState(() => _error = '$e');
-      RodinHaptics.reject();
+      DuchampHaptics.reject();
       return false;
     } finally {
       if (mounted) setState(() => _busy = null);
@@ -134,7 +134,7 @@ class _SubsystemClocksScreenState extends State<SubsystemClocksScreen>
   }
 
   @override
-  Widget build(BuildContext context) => RodinScrollPage(
+  Widget build(BuildContext context) => DuchampScrollPage(
     children: <Widget>[
       DetailHeader(title: 'Memory DVFS & UFS', onBack: widget.onBack),
       const SizedBox(height: 4),
@@ -177,7 +177,7 @@ class _SubsystemClocksScreenState extends State<SubsystemClocksScreen>
       const Padding(
         padding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
         child: Text(
-          'Settings remain active when Rodin Essential closes. For now, reboot or daemon restart restores OEM settings. Thermal protection and suspend remain active.',
+          'Settings remain active when Duchamp Essential closes. For now, reboot or daemon restart restores OEM settings. Thermal protection and suspend remain active.',
           style: TextStyle(fontSize: 11, height: 1.5),
         ),
       ),
@@ -341,7 +341,7 @@ class _SubsystemFrequencyCardState extends State<_SubsystemFrequencyCard> {
       : 'Unavailable';
   void _mode(bool exact) {
     if (_exact == exact) return;
-    RodinHaptics.segment();
+    DuchampHaptics.segment();
     setState(() {
       _exact = exact;
       if (exact) {
@@ -364,7 +364,7 @@ class _SubsystemFrequencyCardState extends State<_SubsystemFrequencyCard> {
   }
 
   Future<void> _reset() async {
-    RodinHaptics.tap();
+    DuchampHaptics.tap();
     setState(() => _sending = true);
     final accepted = await widget.onReset();
     if (mounted)
@@ -525,10 +525,10 @@ class _SubsystemFrequencyCardState extends State<_SubsystemFrequencyCard> {
           ),
           const SizedBox(height: 12),
           AnimatedSize(
-            duration: RodinInteractionSettings.motionDuration(220),
+            duration: DuchampInteractionSettings.motionDuration(220),
             curve: Curves.easeOutCubic,
             child: AnimatedSwitcher(
-              duration: RodinInteractionSettings.motionDuration(180),
+              duration: DuchampInteractionSettings.motionDuration(180),
               child: !ready
                   ? const Padding(
                       key: ValueKey('unavailable'),
@@ -555,7 +555,7 @@ class _SubsystemFrequencyCardState extends State<_SubsystemFrequencyCard> {
                           activeColor: accent,
                           label: _hz(_max),
                           onChangeStart: enabled
-                              ? (_) => RodinHaptics.segment()
+                              ? (_) => DuchampHaptics.segment()
                               : null,
                           onChanged: enabled
                               ? (value) {
@@ -566,11 +566,11 @@ class _SubsystemFrequencyCardState extends State<_SubsystemFrequencyCard> {
                                     _max = hz;
                                     _dirty = true;
                                   });
-                                  RodinHaptics.frequentSegment();
+                                  DuchampHaptics.frequentSegment();
                                 }
                               : null,
                           onChangeEnd: enabled
-                              ? (_) => RodinHaptics.confirm()
+                              ? (_) => DuchampHaptics.confirm()
                               : null,
                         ),
                       ],
@@ -597,7 +597,7 @@ class _SubsystemFrequencyCardState extends State<_SubsystemFrequencyCard> {
                           activeColor: accent,
                           labels: RangeLabels(_hz(_min), _hz(_max)),
                           onChangeStart: enabled
-                              ? (_) => RodinHaptics.segment()
+                              ? (_) => DuchampHaptics.segment()
                               : null,
                           onChanged: enabled
                               ? (value) {
@@ -609,11 +609,11 @@ class _SubsystemFrequencyCardState extends State<_SubsystemFrequencyCard> {
                                     _max = max;
                                     _dirty = true;
                                   });
-                                  RodinHaptics.frequentSegment();
+                                  DuchampHaptics.frequentSegment();
                                 }
                               : null,
                           onChangeEnd: enabled
-                              ? (_) => RodinHaptics.confirm()
+                              ? (_) => DuchampHaptics.confirm()
                               : null,
                         ),
                       ],

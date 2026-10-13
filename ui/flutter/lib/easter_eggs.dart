@@ -4,21 +4,21 @@ part of 'main.dart';
 //     [ CPU ]  [ GPU ]
 //         \\    /
 //       ( snack )       No frequency tables were harmed making this sandwich.
-class RodinVersionSecret extends StatefulWidget {
-  const RodinVersionSecret({required this.version, super.key});
+class DuchampVersionSecret extends StatefulWidget {
+  const DuchampVersionSecret({required this.version, super.key});
   final String version;
   @override
-  State<RodinVersionSecret> createState() => _RodinVersionSecretState();
+  State<DuchampVersionSecret> createState() => _DuchampVersionSecretState();
 }
 
-class _RodinVersionSecretState extends State<RodinVersionSecret> {
+class _DuchampVersionSecretState extends State<DuchampVersionSecret> {
   int _taps = 0;
   Timer? _reset;
   bool _open = false;
 
   void _tap() {
     if (_open) return;
-    RodinHaptics.confirm();
+    DuchampHaptics.confirm();
     _reset?.cancel();
     _reset = Timer(const Duration(seconds: 2), () {
       if (mounted) setState(() => _taps = 0);
@@ -36,8 +36,8 @@ class _RodinVersionSecretState extends State<RodinVersionSecret> {
         barrierColor: Colors.black.withValues(alpha: 0.5),
         transitionDuration: MediaQuery.disableAnimationsOf(context)
             ? Duration.zero
-            : RodinInteractionSettings.motionDuration(340),
-        pageBuilder: (_, _, _) => const RodinSecretRoom(),
+            : DuchampInteractionSettings.motionDuration(340),
+        pageBuilder: (_, _, _) => const DuchampSecretRoom(),
         transitionBuilder: (_, Animation<double> animation, _, Widget child) =>
             FadeTransition(
               opacity: animation,
@@ -65,7 +65,7 @@ class _RodinVersionSecretState extends State<RodinVersionSecret> {
   @override
   Widget build(BuildContext context) => Semantics(
     button: true,
-    label: 'Rodin Essential version ${widget.version}',
+    label: 'Duchamp Essential version ${widget.version}',
     hint: 'Tap four times to discover a secret',
     child: PressScale(
       enableHaptics: false,
@@ -76,7 +76,7 @@ class _RodinVersionSecretState extends State<RodinVersionSecret> {
           scale: 1 + _taps * 0.025,
           duration: MediaQuery.disableAnimationsOf(context)
               ? Duration.zero
-              : RodinInteractionSettings.motionDuration(160),
+              : DuchampInteractionSettings.motionDuration(160),
           curve: Curves.easeOutCubic,
           child: StatusPill(
             label: widget.version,
@@ -88,13 +88,13 @@ class _RodinVersionSecretState extends State<RodinVersionSecret> {
   );
 }
 
-class RodinSecretRoom extends StatefulWidget {
-  const RodinSecretRoom({super.key});
+class DuchampSecretRoom extends StatefulWidget {
+  const DuchampSecretRoom({super.key});
   @override
-  State<RodinSecretRoom> createState() => _RodinSecretRoomState();
+  State<DuchampSecretRoom> createState() => _DuchampSecretRoomState();
 }
 
-class _RodinSecretRoomState extends State<RodinSecretRoom>
+class _DuchampSecretRoomState extends State<DuchampSecretRoom>
     with TickerProviderStateMixin {
   static const List<String> _jokes = <String>[
     'Four taps. Zero secret overclock.',
@@ -103,7 +103,7 @@ class _RodinSecretRoomState extends State<RodinSecretRoom>
     'Touch grass. OEM adaptive mode.',
     'Zero DEX. Full dad jokes.',
     'More cores, fewer chores. The laundry still won’t compile.',
-    'NEESCHAL hid this here. The compiler pretended not to notice.',
+    'SaanOS hid this here. The compiler pretended not to notice.',
     'The daemon works in the background. I tell jokes in the foreground.',
     'Your phone has eight cores. Somehow, you’re still doing all the work.',
     'Battery at 1%: suddenly every charger becomes your best friend.',
@@ -116,7 +116,7 @@ class _RodinSecretRoomState extends State<RodinSecretRoom>
     '128 tabs open. All of them are apparently essential.',
     'My charger and I have a connection. Sometimes it’s complicated.',
     'You found the Easter egg. The chicken is still compiling.',
-    'NEESCHAL promised fewer bugs. Nobody said anything about these jokes.',
+    'SaanOS promised fewer bugs. Nobody said anything about these jokes.',
   ];
   late final AnimationController _burst;
   late final AnimationController _hold;
@@ -140,16 +140,16 @@ class _RodinSecretRoomState extends State<RodinSecretRoom>
           duration: const Duration(milliseconds: 900),
         )..addStatusListener((AnimationStatus status) {
           if (status == AnimationStatus.completed && _holding && mounted) {
-            RodinHaptics.confirm();
+            DuchampHaptics.confirm();
             setState(() => _ready = true);
           }
         });
-    RodinNestedBackController.attach(this, _close);
+    DuchampNestedBackController.attach(this, _close);
   }
 
   bool get _animate =>
       !MediaQuery.disableAnimationsOf(context) &&
-      RodinInteractionSettings.motionDuration(1100) != Duration.zero;
+      DuchampInteractionSettings.motionDuration(1100) != Duration.zero;
 
   @override
   void didChangeDependencies() {
@@ -191,11 +191,11 @@ class _RodinSecretRoomState extends State<RodinSecretRoom>
       _ready = false;
       _playing = launch;
     });
-    if (launch) RodinHaptics.confirm();
+    if (launch) DuchampHaptics.confirm();
   }
 
   void _next() {
-    RodinHaptics.confirm();
+    DuchampHaptics.confirm();
     setState(() => _joke = (_joke + 1) % _jokes.length);
     if (_animate) {
       _burst.forward(from: 0);
@@ -204,7 +204,7 @@ class _RodinSecretRoomState extends State<RodinSecretRoom>
 
   @override
   void dispose() {
-    RodinNestedBackController.detach(this);
+    DuchampNestedBackController.detach(this);
     _burst.dispose();
     _hold.dispose();
     super.dispose();
@@ -259,7 +259,7 @@ class _RodinSecretRoomState extends State<RodinSecretRoom>
                           IconButton(
                             tooltip: 'Close secret room',
                             onPressed: () {
-                              RodinHaptics.confirm();
+                              DuchampHaptics.confirm();
                               _close();
                             },
                             icon: const Icon(Icons.close_rounded),
@@ -269,7 +269,7 @@ class _RodinSecretRoomState extends State<RodinSecretRoom>
                       Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
-                          '$rodinReleaseCodename · a little less serious.',
+                          '$duchampReleaseCodename · a little less serious.',
                           style: TextStyle(
                             fontSize: 12,
                             height: 1.5,
@@ -289,7 +289,7 @@ class _RodinSecretRoomState extends State<RodinSecretRoom>
                                   child: AnimatedBuilder(
                                     animation: _burst,
                                     builder: (_, _) => CustomPaint(
-                                      painter: _RodinSparkles(
+                                      painter: _DuchampSparkles(
                                         _burst.value,
                                         colors.primary,
                                         colors.secondary,
@@ -306,7 +306,7 @@ class _RodinSecretRoomState extends State<RodinSecretRoom>
                               ]),
                               child: Semantics(
                                 button: true,
-                                label: 'Rodin Essential logo',
+                                label: 'Duchamp Essential logo',
                                 hint:
                                     'Tap for a joke. Hold, then release to play Aurora Drift.',
                                 child: GestureDetector(
@@ -318,7 +318,7 @@ class _RodinSecretRoomState extends State<RodinSecretRoom>
                                   onLongPressCancel: () {
                                     if (_holding) _endHold(cancelled: true);
                                   },
-                                  child: _RodinAppEmblem(
+                                  child: _DuchampAppEmblem(
                                     size: 72,
                                     color: colors.primary,
                                   ),
@@ -371,13 +371,13 @@ class _RodinSecretRoomState extends State<RodinSecretRoom>
                         joke
                       else
                         AnimatedSize(
-                          duration: RodinInteractionSettings.motionDuration(
+                          duration: DuchampInteractionSettings.motionDuration(
                             280,
                           ),
                           curve: Curves.easeOutCubic,
                           child: AnimatedSwitcher(
                             duration: _animate
-                                ? RodinInteractionSettings.motionDuration(260)
+                                ? DuchampInteractionSettings.motionDuration(260)
                                 : Duration.zero,
                             transitionBuilder:
                                 (Widget child, Animation<double> animation) =>
@@ -408,14 +408,14 @@ class _RodinSecretRoomState extends State<RodinSecretRoom>
                       ),
                       TextButton(
                         onPressed: () {
-                          RodinHaptics.confirm();
+                          DuchampHaptics.confirm();
                           setState(() => _playing = true);
                         },
                         child: const Text('Play Aurora Drift'),
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'Made with a straight face by NEESCHAL 🇳🇵',
+                        'Made with a straight face by SaanOS',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 10,
@@ -442,8 +442,8 @@ class _RodinSecretRoomState extends State<RodinSecretRoom>
   }
 }
 
-class _RodinSparkles extends CustomPainter {
-  const _RodinSparkles(this.progress, this.primary, this.secondary);
+class _DuchampSparkles extends CustomPainter {
+  const _DuchampSparkles(this.progress, this.primary, this.secondary);
   final double progress;
   final Color primary;
   final Color secondary;
@@ -489,7 +489,7 @@ class _RodinSparkles extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_RodinSparkles old) =>
+  bool shouldRepaint(_DuchampSparkles old) =>
       old.progress != progress ||
       old.primary != primary ||
       old.secondary != secondary;

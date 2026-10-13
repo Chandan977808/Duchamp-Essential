@@ -1,5 +1,5 @@
 [package]
-name = "rodin-essential-daemon"
+name = "duchamp-essential-daemon"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -10,13 +10,13 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 [lib]
-name = "rodin_essential_backend"
+name = "duchamp_essential_backend"
 path = "src/lib.rs"
 
 [[bin]]
-name = "rodin_daemon"
-path = "src/bin/rodin_essentiald.rs"
+name = "duchamp_daemon"
+path = "src/bin/duchamp_essentiald.rs"
 
 [[bin]]
-name = "rodin_ctl"
-path = "src/bin/rodin_essentialctl.rs"
+name = "duchamp_ctl"
+path = "src/bin/duchamp_essentialctl.rs"

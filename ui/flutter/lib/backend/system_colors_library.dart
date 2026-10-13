@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-final class RodinSavedPalette {
-  const RodinSavedPalette({
+final class DuchampSavedPalette {
+  const DuchampSavedPalette({
     required this.name,
     required this.seed,
     required this.style,
@@ -12,7 +12,7 @@ final class RodinSavedPalette {
   final int seed;
   final int style;
 
-  static RodinSavedPalette? fromJson(Object? value) {
+  static DuchampSavedPalette? fromJson(Object? value) {
     if (value is! Map<String, dynamic>) return null;
     final Object? name = value['name'];
     final Object? seed = value['seed'];
@@ -28,7 +28,7 @@ final class RodinSavedPalette {
         style > 6) {
       return null;
     }
-    return RodinSavedPalette(name: name.trim(), seed: seed, style: style);
+    return DuchampSavedPalette(name: name.trim(), seed: seed, style: style);
   }
 
   Map<String, Object> toJson() => <String, Object>{
@@ -38,18 +38,18 @@ final class RodinSavedPalette {
   };
 }
 
-final class RodinSystemColorsLibrary {
-  RodinSystemColorsLibrary({File? storageFile}) : _storageFile = storageFile;
+final class DuchampSystemColorsLibrary {
+  DuchampSystemColorsLibrary({File? storageFile}) : _storageFile = storageFile;
 
   final File? _storageFile;
   File get _file =>
       _storageFile ??
       File(
-        '${Directory.systemTemp.parent.path}/files/rodin-system-colors-library.json',
+        '${Directory.systemTemp.parent.path}/files/duchamp-system-colors-library.json',
       );
 
   List<(int, int)> recents = <(int, int)>[];
-  List<RodinSavedPalette> saved = <RodinSavedPalette>[];
+  List<DuchampSavedPalette> saved = <DuchampSavedPalette>[];
 
   Future<void> load() async {
     try {
@@ -80,14 +80,14 @@ final class RodinSystemColorsLibrary {
       }
       if (savedJson is List) {
         saved = savedJson
-            .map(RodinSavedPalette.fromJson)
-            .whereType<RodinSavedPalette>()
+            .map(DuchampSavedPalette.fromJson)
+            .whereType<DuchampSavedPalette>()
             .take(12)
             .toList();
       }
     } catch (_) {
       recents = <(int, int)>[];
-      saved = <RodinSavedPalette>[];
+      saved = <DuchampSavedPalette>[];
     }
   }
 
@@ -102,18 +102,18 @@ final class RodinSystemColorsLibrary {
 
   Future<void> save(String name, int seed, int style) async {
     saved.removeWhere(
-      (RodinSavedPalette item) =>
+      (DuchampSavedPalette item) =>
           item.name.toLowerCase() == name.trim().toLowerCase(),
     );
     saved.insert(
       0,
-      RodinSavedPalette(name: name.trim(), seed: seed, style: style),
+      DuchampSavedPalette(name: name.trim(), seed: seed, style: style),
     );
     if (saved.length > 12) saved.removeRange(12, saved.length);
     await _write();
   }
 
-  Future<void> remove(RodinSavedPalette palette) async {
+  Future<void> remove(DuchampSavedPalette palette) async {
     saved.remove(palette);
     await _write();
   }

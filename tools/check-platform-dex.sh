@@ -11,9 +11,9 @@ DEXDUMP="$(find "$SDK/build-tools" -type f -name dexdump | sort -V | tail -1)"
 test -n "$DEXDUMP"
 CLASSES="$("$DEXDUMP" "$DEX" | awk -F "'" '/Class descriptor/ {print $2}')"
 test -n "$CLASSES"
-if printf '%s\n' "$CLASSES" | grep -Ev '^Lio/github/neeschal/rodinessential/(RodinActivity|BypassTileService)(;|\$)'; then
+if printf '%s\n' "$CLASSES" | grep -Ev '^Lcom/saan/duchamp/essential/(DuchampActivity|BypassTileService)(;|\$)'; then
     echo 'Unexpected managed class in APK' >&2; exit 1
 fi
-printf '%s\n' "$CLASSES" | grep -qx 'Lio/github/neeschal/rodinessential/RodinActivity;'
-printf '%s\n' "$CLASSES" | grep -qx 'Lio/github/neeschal/rodinessential/BypassTileService;'
+printf '%s\n' "$CLASSES" | grep -qx 'Lcom/saan/duchamp/essential/DuchampActivity;'
+printf '%s\n' "$CLASSES" | grep -qx 'Lcom/saan/duchamp/essential/BypassTileService;'
 echo 'PLATFORM_BRIDGE_DEX=PASS (framework adapters only)'

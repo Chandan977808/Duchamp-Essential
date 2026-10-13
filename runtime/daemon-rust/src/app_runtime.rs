@@ -289,7 +289,7 @@ impl Hardware for Adapter {
                 let min = saved.state.gpu_min_freq_mhz;
                 let max = saved.state.gpu_max_freq_mhz;
                 if min > 0 && max >= min {
-                    set_gpu_min_freq(260)?;
+                    set_gpu_min_freq(265)?;
                     set_gpu_max_freq(max)?;
                     set_gpu_min_freq(min)?;
                 }
@@ -1092,7 +1092,7 @@ mod tests {
     }
     #[test]
     fn focused_activity_wins_over_a_resumed_floating_window() {
-        let raw = "topResumedActivity=ActivityRecord{x u0 io.github.neeschal.rodinessential/android.app.NativeActivity t1}\n\
+        let raw = "topResumedActivity=ActivityRecord{x u0 com.saan.duchamp.essential/android.app.NativeActivity t1}\n\
                  topResumedActivity=ActivityRecord{y u0 com.android.settings/.MiuiSettings t2}\n\
                  ResumedActivity: ActivityRecord{y u0 com.android.settings/.MiuiSettings t2}";
         assert_eq!(

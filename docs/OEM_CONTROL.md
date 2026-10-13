@@ -2,7 +2,7 @@
 
 Fresh installations and missing settings leave touch sampling, display colour,
 temperature and display enhancements under ROM control. A value
-of `-1` in the saved state means no Rodin Essential override; it does not mean the hardware
+of `-1` in the saved state means no Duchamp Essential override; it does not mean the hardware
 feature is disabled.
 
 Existing explicit choices are preserved. Selecting a fixed touch profile or a
@@ -25,13 +25,13 @@ depend on the panel and vendor services.
 ## Returning colour modes to the ROM
 
 Select **OEM Control** separately for colour and temperature. This removes that
-Rodin Essential override from persistence without forcing Vivid, Normal or another guessed
+Duchamp Essential override from persistence without forcing Vivid, Normal or another guessed
 stock mode. The vendor display interface does not provide a portable original
 profile getter or ownership-release transaction. The current appearance can
 remain until the ROM reapplies its display settings. Expert calibration is
 restored only when Original PRO is explicitly selected.
 
-Switches marked **OEM** report no Rodin Essential selection, rather than pretending the
+Switches marked **OEM** report no Duchamp Essential selection, rather than pretending the
 hardware feature is off. Explicitly selecting a switch still saves an override.
 
 These controls use the same daemon logic in ROM-native and root-module builds.

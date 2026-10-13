@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rodin_essential_ui/main.dart';
-import 'package:rodin_essential_ui/surface_lines.dart';
+import 'package:duchamp_essential_ui/main.dart';
+import 'package:duchamp_essential_ui/surface_lines.dart';
 
 ColorScheme schemeFor(Brightness brightness) =>
     ColorScheme.fromSeed(
@@ -26,9 +26,9 @@ void main() {
       'boundaries remain visible without translucent strokes: $brightness',
       () {
         for (final stroke in [
-          RodinSurfaceLines.border(colors),
-          RodinSurfaceLines.inset(colors),
-          RodinSurfaceLines.divider(colors),
+          DuchampSurfaceLines.border(colors),
+          DuchampSurfaceLines.inset(colors),
+          DuchampSurfaceLines.divider(colors),
         ]) {
           expect(stroke.a, 1);
           final luminance = stroke.computeLuminance();
@@ -50,10 +50,10 @@ void main() {
             MaterialApp(
               theme: ThemeData(colorScheme: colors),
               home: Scaffold(
-                body: RodinAppearanceScope(
-                  config: RodinAppearanceConfig(
-                    themePreference: RodinThemePreference.system,
-                    backgroundStyle: RodinBackgroundStyle.system,
+                body: DuchampAppearanceScope(
+                  config: DuchampAppearanceConfig(
+                    themePreference: DuchampThemePreference.system,
+                    backgroundStyle: DuchampBackgroundStyle.system,
                     backgroundBlur: 0,
                     customPath: '',
                     cardStyle: cardStyle,
@@ -74,7 +74,7 @@ void main() {
           final decoration = container.decoration! as BoxDecoration;
           expect(
             (decoration.border! as Border).top.color,
-            RodinSurfaceLines.border(colors),
+            DuchampSurfaceLines.border(colors),
           );
           expect(decoration.borderRadius, BorderRadius.circular(22));
           expect(tester.takeException(), isNull);
@@ -118,13 +118,13 @@ void main() {
             );
             final border =
                 (container.decoration! as BoxDecoration).border! as Border;
-            expect(border.top.color, RodinSurfaceLines.inset(colors));
+            expect(border.top.color, DuchampSurfaceLines.inset(colors));
             expect(border.top.width, 0.85);
           }
           final dividers = tester.widgetList<Divider>(find.byType(Divider));
           expect(dividers, isNotEmpty);
           for (final divider in dividers) {
-            expect(divider.color, RodinSurfaceLines.divider(colors));
+            expect(divider.color, DuchampSurfaceLines.divider(colors));
             expect(divider.thickness, 0.8);
           }
           expect(tester.takeException(), isNull);

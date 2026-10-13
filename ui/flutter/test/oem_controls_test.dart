@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rodin_essential_ui/main.dart';
+import 'package:duchamp_essential_ui/main.dart';
 
 void main() {
   testWidgets('hero keeps full descriptions at narrow width', (tester) async {
     const description =
-        'Rodin Essential override released · ROM-managed timing · Goodix GT9916 · Vendor HAL ready';
+        'Duchamp Essential override released · ROM-managed timing · Goodix GT9916 · Vendor HAL ready';
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(

@@ -1,7 +1,7 @@
 /// Cached Android palette readback. Color values are opaque 24-bit RGB, not
 /// generated previews. Loading this model never queries an Android service.
-final class RodinSystemColorsState {
-  const RodinSystemColorsState({
+final class DuchampSystemColorsState {
+  const DuchampSystemColorsState({
     this.operationState = 0,
     this.supported = false,
     this.mode = -1,
@@ -28,8 +28,8 @@ final class RodinSystemColorsState {
     this.contrastRevision = 0,
   });
 
-  factory RodinSystemColorsState.fromNative(int Function(int) read) {
-    return RodinSystemColorsState(
+  factory DuchampSystemColorsState.fromNative(int Function(int) read) {
+    return DuchampSystemColorsState(
       operationState: read(81),
       mode: read(82),
       seed: read(83),
@@ -135,15 +135,15 @@ final class RodinSystemColorsState {
       'The backend returned an incomplete palette. Update the app and '
           'backend together.',
     _ =>
-      'The system service could not be reached. Connect the updated Rodin '
+      'The system service could not be reached. Connect the updated Duchamp '
           'backend, then refresh.',
   };
 }
 
 /// Last confirmed choice for presentation during startup, never native
 /// resource readback or authority to write a system setting.
-final class RodinSystemColorsSelection {
-  const RodinSystemColorsSelection({
+final class DuchampSystemColorsSelection {
+  const DuchampSystemColorsSelection({
     required this.wallpaper,
     required this.seed,
     required this.style,
@@ -153,7 +153,7 @@ final class RodinSystemColorsSelection {
   final int seed;
   final int style;
 
-  static RodinSystemColorsSelection? fromNative(RodinSystemColorsState state) {
+  static DuchampSystemColorsSelection? fromNative(DuchampSystemColorsState state) {
     if (!state.ready ||
         !state.hasReadback ||
         (state.mode != 0 && state.mode != 1) ||
@@ -163,14 +163,14 @@ final class RodinSystemColorsSelection {
     }
     if (state.mode == 1 && (state.seed < 0 || state.seed > 0xffffff))
       return null;
-    return RodinSystemColorsSelection(
+    return DuchampSystemColorsSelection(
       wallpaper: state.mode == 0,
       seed: state.seed >= 0 ? state.seed : 0x008577,
       style: state.style,
     );
   }
 
-  static RodinSystemColorsSelection? fromJson(Object? value) {
+  static DuchampSystemColorsSelection? fromJson(Object? value) {
     if (value is! Map<String, dynamic> || value['schema'] != 1) return null;
     final Object? wallpaper = value['wallpaper'];
     final Object? seed = value['seed'];
@@ -183,7 +183,7 @@ final class RodinSystemColorsSelection {
         style < 0 ||
         style > 6)
       return null;
-    return RodinSystemColorsSelection(
+    return DuchampSystemColorsSelection(
       wallpaper: wallpaper,
       seed: seed,
       style: style,
@@ -199,7 +199,7 @@ final class RodinSystemColorsSelection {
 
   @override
   bool operator ==(Object other) =>
-      other is RodinSystemColorsSelection &&
+      other is DuchampSystemColorsSelection &&
       other.wallpaper == wallpaper &&
       other.seed == seed &&
       other.style == style;

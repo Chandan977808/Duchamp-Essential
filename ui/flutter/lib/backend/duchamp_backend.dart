@@ -18,8 +18,8 @@ typedef _BackListenerNative =
 typedef _BackListenerDart =
     void Function(ffi.Pointer<ffi.NativeFunction<_BackEventNative>>);
 
-final class RodinBackendSnapshot {
-  const RodinBackendSnapshot({
+final class DuchampBackendSnapshot {
+  const DuchampBackendSnapshot({
     this.serviceEnabled = true,
     required this.connection,
     required this.actionState,
@@ -52,13 +52,13 @@ final class RodinBackendSnapshot {
     required this.performanceProfile,
   });
 
-  final RodinConnectionState connection;
+  final DuchampConnectionState connection;
   final bool serviceEnabled;
   bool get controlsAvailable => ready && serviceEnabled;
   String get serviceStatusLabel =>
       connection.serviceLabel(enabled: serviceEnabled);
   String get serviceStatusBadgeLabel => serviceStatusLabel.toUpperCase();
-  bool get ready => connection == RodinConnectionState.online;
+  bool get ready => connection == DuchampConnectionState.online;
   final int actionState;
   final int chargingWriteState;
   final int chargingMode;
@@ -117,18 +117,18 @@ typedef _I32ToI32Dart = int Function(int);
 typedef _SetTwoI32Native = ffi.Int32 Function(ffi.Int32, ffi.Int32);
 typedef _SetTwoI32Dart = int Function(int, int);
 
-final class RodinBackend {
-  RodinBackend._();
-  static final RodinBackend instance = RodinBackend._();
+final class DuchampBackend {
+  DuchampBackend._();
+  static final DuchampBackend instance = DuchampBackend._();
 
   ffi.DynamicLibrary? _lib;
   Timer? _timer;
-  RodinSystemColorsMonitor? _paletteMonitor;
-  RodinSystemColorsMonitor? _contrastMonitor;
+  DuchampSystemColorsMonitor? _paletteMonitor;
+  DuchampSystemColorsMonitor? _contrastMonitor;
   bool _started = false;
 
-  final StreamController<RodinBackendSnapshot> _controller =
-      StreamController<RodinBackendSnapshot>.broadcast(sync: true);
+  final StreamController<DuchampBackendSnapshot> _controller =
+      StreamController<DuchampBackendSnapshot>.broadcast(sync: true);
   final Map<int, List<int>> _cpuFrequencyTables = <int, List<int>>{};
 
   late _I32Dart _startNative;
@@ -188,8 +188,8 @@ final class RodinBackend {
   _BackListenerDart? _setBackListenerNative;
   ffi.NativeCallable<_BackEventNative>? _backListener;
 
-  RodinBackendSnapshot _latest = const RodinBackendSnapshot(
-    connection: RodinConnectionState.connecting,
+  DuchampBackendSnapshot _latest = const DuchampBackendSnapshot(
+    connection: DuchampConnectionState.connecting,
     actionState: 0,
     chargingWriteState: 0,
     chargingMode: -1,
@@ -220,19 +220,19 @@ final class RodinBackend {
     performanceProfile: -1,
   );
 
-  RodinBackendSnapshot get latest => _latest;
-  Stream<RodinBackendSnapshot> get snapshots => _controller.stream;
+  DuchampBackendSnapshot get latest => _latest;
+  Stream<DuchampBackendSnapshot> get snapshots => _controller.stream;
   bool get started => _started;
 
-  RodinSystemColorsSelection? _systemColorsSelection;
-  RodinSystemColorsSelection? get systemColorsSelection =>
+  DuchampSystemColorsSelection? _systemColorsSelection;
+  DuchampSystemColorsSelection? get systemColorsSelection =>
       _systemColorsSelection;
   int _systemColorsRevision = 0;
   Future<void> _systemColorsSave = Future<void>.value();
 
   Future<void> _loadSystemColorsSelection() async {
-    final RodinSystemColorsSelection? selection =
-        await RodinSystemColorsPreferences.read();
+    final DuchampSystemColorsSelection? selection =
+        await DuchampSystemColorsPreferences.read();
     // An actual readback that finished meanwhile always wins over the hint.
     if (_systemColorsRevision == 0 && selection != _systemColorsSelection) {
       _systemColorsSelection = selection;
@@ -241,21 +241,21 @@ final class RodinBackend {
   }
 
   void _rememberSystemColors() {
-    final RodinSystemColorsState palette = systemColors;
+    final DuchampSystemColorsState palette = systemColors;
     if (!palette.ready ||
         !palette.hasReadback ||
         palette.revision == _systemColorsRevision)
       return;
     final bool firstRead = _systemColorsRevision == 0;
     _systemColorsRevision = palette.revision;
-    final RodinSystemColorsSelection? selection =
-        RodinSystemColorsSelection.fromNative(palette);
+    final DuchampSystemColorsSelection? selection =
+        DuchampSystemColorsSelection.fromNative(palette);
     if (selection == _systemColorsSelection && !firstRead) return;
     _systemColorsSelection = selection;
     // Serialize these small writes so an older completion cannot replace a
     // newer confirmed selection. This is not a background system reapply.
     _systemColorsSave = _systemColorsSave.then(
-      (_) => RodinSystemColorsPreferences.write(selection),
+      (_) => DuchampSystemColorsPreferences.write(selection),
     );
   }
 
@@ -263,186 +263,186 @@ final class RodinBackend {
     if (_started) return true;
     try {
       final ffi.DynamicLibrary lib = ffi.DynamicLibrary.open(
-        'librodin_essential_host.so',
+        'libduchamp_essential_host.so',
       );
       _startNative = lib.lookupFunction<_I32Native, _I32Dart>(
-        'rodin_backend_start',
+        'duchamp_backend_start',
       );
       _refreshNative = lib.lookupFunction<_I32Native, _I32Dart>(
-        'rodin_backend_refresh',
+        'duchamp_backend_refresh',
       );
       _readyNative = lib.lookupFunction<_I32Native, _I32Dart>(
-        'rodin_backend_ready',
+        'duchamp_backend_ready',
       );
       _actionStateNative = lib.lookupFunction<_I32Native, _I32Dart>(
-        'rodin_backend_get_action_state',
+        'duchamp_backend_get_action_state',
       );
       _chargingWriteStateNative = lib.lookupFunction<_I32Native, _I32Dart>(
-        'rodin_backend_get_charging_write_state',
+        'duchamp_backend_get_charging_write_state',
       );
       _chargingModeNative = lib.lookupFunction<_I32Native, _I32Dart>(
-        'rodin_backend_get_charging_mode',
+        'duchamp_backend_get_charging_mode',
       );
       _setChargingModeNative = lib.lookupFunction<_SetI32Native, _SetI32Dart>(
-        'rodin_backend_set_charging_mode',
+        'duchamp_backend_set_charging_mode',
       );
       _setBypassChargingNative = lib.lookupFunction<_SetI32Native, _SetI32Dart>(
-        'rodin_backend_set_bypass_charging',
+        'duchamp_backend_set_bypass_charging',
       );
       _batteryCapacityNative = lib.lookupFunction<_I32Native, _I32Dart>(
-        'rodin_backend_get_battery_capacity',
+        'duchamp_backend_get_battery_capacity',
       );
       _batteryTempNative = lib.lookupFunction<_I32Native, _I32Dart>(
-        'rodin_backend_get_battery_temp_tenths_c',
+        'duchamp_backend_get_battery_temp_tenths_c',
       );
       _batteryVoltageNative = lib.lookupFunction<_I64Native, _I64Dart>(
-        'rodin_backend_get_battery_voltage_uv',
+        'duchamp_backend_get_battery_voltage_uv',
       );
       _batteryCurrentNative = lib.lookupFunction<_I64Native, _I64Dart>(
-        'rodin_backend_get_battery_current_ua',
+        'duchamp_backend_get_battery_current_ua',
       );
       _batteryStatusNative = lib.lookupFunction<_I32Native, _I32Dart>(
-        'rodin_backend_get_battery_status',
+        'duchamp_backend_get_battery_status',
       );
       _batteryHealthNative = lib.lookupFunction<_I32Native, _I32Dart>(
-        'rodin_backend_get_battery_health',
+        'duchamp_backend_get_battery_health',
       );
       _usbOnlineNative = lib.lookupFunction<_I32Native, _I32Dart>(
-        'rodin_backend_get_usb_online',
+        'duchamp_backend_get_usb_online',
       );
       _usbTypeNative = lib.lookupFunction<_I32Native, _I32Dart>(
-        'rodin_backend_get_usb_type',
+        'duchamp_backend_get_usb_type',
       );
       _cpuOnlineMaskNative = lib.lookupFunction<_U32Native, _U32Dart>(
-        'rodin_backend_get_cpu_online_mask',
+        'duchamp_backend_get_cpu_online_mask',
       );
       _cpuFreqNative = lib.lookupFunction<_U32ToI64Native, _U32ToI64Dart>(
-        'rodin_backend_get_cpu_freq_khz',
+        'duchamp_backend_get_cpu_freq_khz',
       );
       _cpuGovernorNative = lib.lookupFunction<_I32ToI32Native, _I32ToI32Dart>(
-        'rodin_backend_get_cpu_governor',
+        'duchamp_backend_get_cpu_governor',
       );
       _setCpuGovernorNative = lib
           .lookupFunction<_SetTwoI32Native, _SetTwoI32Dart>(
-            'rodin_backend_set_cpu_governor',
+            'duchamp_backend_set_cpu_governor',
           );
       _cpuAvailableCountNative = lib
           .lookupFunction<_I32ToI32Native, _I32ToI32Dart>(
-            'rodin_backend_get_cpu_available_count',
+            'duchamp_backend_get_cpu_available_count',
           );
       _cpuAvailableFreqNative = lib
           .lookupFunction<_SetTwoI32Native, _SetTwoI32Dart>(
-            'rodin_backend_get_cpu_available_freq',
+            'duchamp_backend_get_cpu_available_freq',
           );
       _gpuGovernorNative = lib.lookupFunction<_I32Native, _I32Dart>(
-        'rodin_backend_get_gpu_governor',
+        'duchamp_backend_get_gpu_governor',
       );
       _setGpuGovernorNative = lib.lookupFunction<_SetI32Native, _SetI32Dart>(
-        'rodin_backend_set_gpu_governor',
+        'duchamp_backend_set_gpu_governor',
       );
       _ufsSchedulerNative = lib.lookupFunction<_I32Native, _I32Dart>(
-        'rodin_backend_get_ufs_scheduler',
+        'duchamp_backend_get_ufs_scheduler',
       );
       _setUfsSchedulerNative = lib.lookupFunction<_SetI32Native, _SetI32Dart>(
-        'rodin_backend_set_ufs_scheduler',
+        'duchamp_backend_set_ufs_scheduler',
       );
       _touchHalNative = lib.lookupFunction<_I32Native, _I32Dart>(
-        'rodin_backend_get_touch_hal',
+        'duchamp_backend_get_touch_hal',
       );
       _displayHalNative = lib.lookupFunction<_I32Native, _I32Dart>(
-        'rodin_backend_get_display_hal',
+        'duchamp_backend_get_display_hal',
       );
       _touchStateNative = lib.lookupFunction<_I32Native, _I32Dart>(
-        'rodin_backend_get_touch_state',
+        'duchamp_backend_get_touch_state',
       );
       _setTouchStateNative = lib.lookupFunction<_SetI32Native, _SetI32Dart>(
-        'rodin_backend_set_touch_state',
+        'duchamp_backend_set_touch_state',
       );
       _displayColorNative = lib.lookupFunction<_I32Native, _I32Dart>(
-        'rodin_backend_get_display_color',
+        'duchamp_backend_get_display_color',
       );
       _setDisplayColorNative = lib.lookupFunction<_SetI32Native, _SetI32Dart>(
-        'rodin_backend_set_display_color',
+        'duchamp_backend_set_display_color',
       );
       _displayTempNative = lib.lookupFunction<_I32Native, _I32Dart>(
-        'rodin_backend_get_display_temp',
+        'duchamp_backend_get_display_temp',
       );
       _setDisplayTempNative = lib.lookupFunction<_SetI32Native, _SetI32Dart>(
-        'rodin_backend_set_display_temp',
+        'duchamp_backend_set_display_temp',
       );
       _sunlightNative = lib.lookupFunction<_I32Native, _I32Dart>(
-        'rodin_backend_get_sunlight',
+        'duchamp_backend_get_sunlight',
       );
       _setSunlightNative = lib.lookupFunction<_SetI32Native, _SetI32Dart>(
-        'rodin_backend_set_sunlight',
+        'duchamp_backend_set_sunlight',
       );
       _silkyNative = lib.lookupFunction<_I32Native, _I32Dart>(
-        'rodin_backend_get_silky',
+        'duchamp_backend_get_silky',
       );
       _setSilkyNative = lib.lookupFunction<_SetI32Native, _SetI32Dart>(
-        'rodin_backend_set_silky',
+        'duchamp_backend_set_silky',
       );
       _videoNative = lib.lookupFunction<_I32Native, _I32Dart>(
-        'rodin_backend_get_video',
+        'duchamp_backend_get_video',
       );
       _setVideoNative = lib.lookupFunction<_SetI32Native, _SetI32Dart>(
-        'rodin_backend_set_video',
+        'duchamp_backend_set_video',
       );
       _dolbyNative = lib.lookupFunction<_I32Native, _I32Dart>(
-        'rodin_backend_get_dolby',
+        'duchamp_backend_get_dolby',
       );
       _setDolbyNative = lib.lookupFunction<_SetI32Native, _SetI32Dart>(
-        'rodin_backend_set_dolby',
+        'duchamp_backend_set_dolby',
       );
       _performanceNative = lib.lookupFunction<_I32Native, _I32Dart>(
-        'rodin_backend_get_performance_profile',
+        'duchamp_backend_get_performance_profile',
       );
       _setPerformanceNative = lib.lookupFunction<_SetI32Native, _SetI32Dart>(
-        'rodin_backend_set_performance_profile',
+        'duchamp_backend_set_performance_profile',
       );
       _openSupportLinkNative = lib.lookupFunction<_SetI32Native, _SetI32Dart>(
-        'rodin_backend_open_support_link',
+        'duchamp_backend_open_support_link',
       );
       _hapticNative = lib.lookupFunction<_SetI32Native, _SetI32Dart>(
-        'rodin_host_haptic',
+        'duchamp_host_haptic',
       );
       _backendGetNative = lib
           .lookupFunction<_BackendGetNative, _BackendGetDart>(
-            'rodin_backend_extended_get',
+            'duchamp_backend_extended_get',
           );
       _backendSetNative = lib
           .lookupFunction<_BackendSetNative, _BackendSetDart>(
-            'rodin_backend_extended_set',
+            'duchamp_backend_extended_set',
           );
 
       _setBackInterceptNative = lib.lookupFunction<_SetI32Native, _SetI32Dart>(
-        'rodin_host_set_back_intercept',
+        'duchamp_host_set_back_intercept',
       );
       _consumeBackRequestNative = lib.lookupFunction<_I32Native, _I32Dart>(
-        'rodin_host_consume_back_request',
+        'duchamp_host_consume_back_request',
       );
-      if (lib.providesSymbol('rodin_host_consume_bypass_settings_request')) {
+      if (lib.providesSymbol('duchamp_host_consume_bypass_settings_request')) {
         _consumeBypassSettingsNative = lib.lookupFunction<_I32Native, _I32Dart>(
-          'rodin_host_consume_bypass_settings_request',
+          'duchamp_host_consume_bypass_settings_request',
         );
       }
-      if (lib.providesSymbol('rodin_host_consume_back_gesture')) {
+      if (lib.providesSymbol('duchamp_host_consume_back_gesture')) {
         _consumeBackGestureNative = lib.lookupFunction<_I32Native, _I32Dart>(
-          'rodin_host_consume_back_gesture',
+          'duchamp_host_consume_back_gesture',
         );
       }
-      if (lib.providesSymbol('rodin_host_set_back_listener')) {
+      if (lib.providesSymbol('duchamp_host_set_back_listener')) {
         _setBackListenerNative = lib
             .lookupFunction<_BackListenerNative, _BackListenerDart>(
-              'rodin_host_set_back_listener',
+              'duchamp_host_set_back_listener',
             );
       }
 
       _photoPermissionStateNative = lib.lookupFunction<_I32Native, _I32Dart>(
-        'rodin_host_photo_permission_state',
+        'duchamp_host_photo_permission_state',
       );
       _requestPhotoPermissionNative = lib.lookupFunction<_I32Native, _I32Dart>(
-        'rodin_host_request_photo_permission',
+        'duchamp_host_request_photo_permission',
       );
 
       _lib = lib;
@@ -466,9 +466,9 @@ final class RodinBackend {
   void _poll() {
     if (!_started || _lib == null) return;
     _rememberSystemColors();
-    final RodinBackendSnapshot next = RodinBackendSnapshot(
+    final DuchampBackendSnapshot next = DuchampBackendSnapshot(
       serviceEnabled: _backendGetNative(116) != 0,
-      connection: RodinConnectionState.fromNative(_readyNative()),
+      connection: DuchampConnectionState.fromNative(_readyNative()),
       actionState: _actionStateNative(),
       chargingWriteState: _chargingWriteStateNative(),
       chargingMode: _chargingModeNative(),
@@ -546,7 +546,7 @@ final class RodinBackend {
   }
 
   // Kept for older call sites outside the Flutter screen bundle. Enabled maps
-  // to Rodin's sustained 480 Hz profile; disabled restores OEM Dynamic.
+  // to Duchamp's sustained 480 Hz profile; disabled restores OEM Dynamic.
   bool setTouchBoost(bool enabled) => setTouchProfile(enabled ? 2 : 0);
   bool setDisplayColor(int mode) => _queue(_setDisplayColorNative(mode));
   bool setDisplayTemperature(int mode) => _queue(_setDisplayTempNative(mode));
@@ -557,7 +557,7 @@ final class RodinBackend {
   bool setDolbyVision(bool enabled) => _queue(_setDolbyNative(enabled ? 1 : 0));
   bool setPerformanceProfile(int profile) {
     if (_latest.performanceProfile != profile) {
-      _latest = RodinBackendSnapshot(
+      _latest = DuchampBackendSnapshot(
         connection: _latest.connection,
         serviceEnabled: _latest.serviceEnabled,
         actionState: _latest.actionState,
@@ -652,9 +652,9 @@ final class RodinBackend {
     return res;
   }
 
-  RodinSystemColorsState get systemColors => _started
-      ? RodinSystemColorsState.fromNative(extendedValue)
-      : const RodinSystemColorsState();
+  DuchampSystemColorsState get systemColors => _started
+      ? DuchampSystemColorsState.fromNative(extendedValue)
+      : const DuchampSystemColorsState();
 
   // Palette transactions have their own result and revision in the native
   // cache. Do not trigger hardware refresh/reapply operations from this screen.
@@ -664,7 +664,7 @@ final class RodinBackend {
     // The normal dashboard cadence is 500 ms. Palette completions must not
     // sit behind it while the user is choosing the next color. Read only two
     // atomic cache fields until completion, then stop completely.
-    (_paletteMonitor ??= RodinSystemColorsMonitor(
+    (_paletteMonitor ??= DuchampSystemColorsMonitor(
       readStamp: () => (extendedValue(81), extendedValue(94)),
       onChanged: () {
         _rememberSystemColors();
@@ -681,7 +681,7 @@ final class RodinBackend {
   bool _queueSystemColorContrast(int operation, [int level = 0]) {
     if (!_started || _lib == null) return false;
     if (_backendSetNative(operation, level, 0) != 1) return false;
-    (_contrastMonitor ??= RodinSystemColorsMonitor(
+    (_contrastMonitor ??= DuchampSystemColorsMonitor(
       readStamp: () => (extendedValue(96), extendedValue(104)),
       onChanged: () => _controller.add(_latest),
     )).watch();

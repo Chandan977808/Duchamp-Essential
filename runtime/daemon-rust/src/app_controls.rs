@@ -831,7 +831,7 @@ mod tests {
             .unwrap()
             .as_nanos();
         let dir = std::env::temp_dir().join(format!(
-            "rodin-profiles-test-{}-{nonce}",
+            "duchamp-profiles-test-{}-{nonce}",
             std::process::id()
         ));
         let path = dir.join("profiles.json");

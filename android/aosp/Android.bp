@@ -1,24 +1,24 @@
-// Rodin Essential prebuilt integration for the product partition.
+// Duchamp Essential prebuilt integration for the product partition.
 
 package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
 android_app_import {
-    name: "RodinEssential",
-    apk: "prebuilt/RodinEssential.apk",
+    name: "DuchampEssential",
+    apk: "prebuilt/DuchampEssential.apk",
     presigned: true,
     preprocessed: true,
     product_specific: true,
-    required: ["rodin_daemon"],
+    required: ["duchamp_daemon"],
     dex_preopt: {
         enabled: false,
     },
 }
 
 cc_prebuilt_binary {
-    name: "rodin_daemon",
-    srcs: ["prebuilt/rodin_daemon"],
+    name: "duchamp_daemon",
+    srcs: ["prebuilt/duchamp_daemon"],
     compile_multilib: "64",
     product_specific: true,
     shared_libs: [
@@ -29,12 +29,12 @@ cc_prebuilt_binary {
     strip: {
         none: true,
     },
-    init_rc: ["rodin_daemon.rc"],
+    init_rc: ["duchamp_daemon.rc"],
 }
 
 cc_prebuilt_binary {
-    name: "rodin_ctl",
-    srcs: ["prebuilt/rodin_ctl"],
+    name: "duchamp_ctl",
+    srcs: ["prebuilt/duchamp_ctl"],
     compile_multilib: "64",
     product_specific: true,
     shared_libs: [

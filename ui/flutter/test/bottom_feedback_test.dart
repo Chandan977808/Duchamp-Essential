@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rodin_essential_ui/bottom_feedback.dart';
+import 'package:duchamp_essential_ui/bottom_feedback.dart';
 
-const message = 'Applied Gaming Dynamic · Full Range (260–1300 MHz)';
+const message = 'Applied Gaming Dynamic · Full Range (265–1400 MHz)';
 
 Widget harness({
   double inset = 0,
@@ -28,14 +28,14 @@ Widget harness({
           Positioned(
             key: const ValueKey('dock'),
             bottom:
-                RodinBottomLayout.navigationClearance(context) +
-                RodinBottomLayout.dockGap,
+                DuchampBottomLayout.navigationClearance(context) +
+                DuchampBottomLayout.dockGap,
             left: 10,
             right: 10,
-            height: RodinBottomLayout.dockHeight,
+            height: DuchampBottomLayout.dockHeight,
             child: const ColoredBox(color: Colors.grey),
           ),
-          RodinFeedbackOverlay(
+          DuchampFeedbackOverlay(
             tag: 'GPU PRESET',
             message: message,
             icon: Icons.sports_esports_rounded,
@@ -62,7 +62,7 @@ void main() {
           harness(inset: inset, scale: 1.6, brightness: brightness),
         );
         await tester.pumpAndSettle();
-        final card = tester.getRect(find.byType(RodinFeedbackCard));
+        final card = tester.getRect(find.byType(DuchampFeedbackCard));
         final dock = tester.getRect(find.byKey(const ValueKey('dock')));
         expect(card.bottom, lessThanOrEqualTo(dock.top - 12));
         expect(card.top, greaterThan(0));
@@ -82,7 +82,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     final fading = tester.widget<FadeTransition>(
       find.descendant(
-        of: find.byType(RodinFeedbackOverlay),
+        of: find.byType(DuchampFeedbackOverlay),
         matching: find.byType(FadeTransition),
       ),
     );
@@ -97,7 +97,7 @@ void main() {
       tester
           .widget<IgnorePointer>(
             find.descendant(
-              of: find.byType(RodinFeedbackOverlay),
+              of: find.byType(DuchampFeedbackOverlay),
               matching: find.byType(IgnorePointer),
             ),
           )

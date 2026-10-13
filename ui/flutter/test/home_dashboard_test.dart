@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rodin_essential_ui/main.dart';
-import 'package:rodin_essential_ui/page_motion.dart';
+import 'package:duchamp_essential_ui/main.dart';
+import 'package:duchamp_essential_ui/page_motion.dart';
 
 void main() {
   test('scroll momentum and spring are bounded', () {
-    const physics = RodinScrollPhysics();
+    const physics = DuchampScrollPhysics();
     expect(physics.maxFlingVelocity, 6500);
     expect(physics.carriedMomentum(20000), lessThanOrEqualTo(3500));
     expect(physics.carriedMomentum(-20000), greaterThanOrEqualTo(-3500));
     expect(physics.spring.mass, 0.65);
-    expect(const RodinSpringCurve().transform(0), 0);
-    expect(const RodinSpringCurve().transform(1), 1);
+    expect(const DuchampSpringCurve().transform(0), 0);
+    expect(const DuchampSpringCurve().transform(1), 1);
   });
   for (final brightness in Brightness.values) {
     testWidgets('new Home fits small screens and larger type ($brightness)', (
@@ -59,9 +59,9 @@ void main() {
     final velocity = ValueNotifier<double>(0);
     await tester.pumpWidget(
       MaterialApp(
-        home: RodinScrollMotionScope(
+        home: DuchampScrollMotionScope(
           velocity: velocity,
-          child: const RodinInertiaLayer(
+          child: const DuchampInertiaLayer(
             child: SizedBox(width: 200, height: 100),
           ),
         ),

@@ -1,23 +1,23 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rodin_essential_ui/page_motion.dart';
+import 'package:duchamp_essential_ui/page_motion.dart';
 
 void main() {
   tearDown(() {
-    RodinBackMotion.progress.value = 0;
-    RodinBackMotion.nested = false;
-    RodinBackMotion.rightEdge = false;
-    RodinBackMotion.committedProgress = 0;
+    DuchampBackMotion.progress.value = 0;
+    DuchampBackMotion.nested = false;
+    DuchampBackMotion.rightEdge = false;
+    DuchampBackMotion.committedProgress = 0;
   });
   testWidgets('previewed destination cannot receive taps during Back', (
     tester,
   ) async {
     var taps = 0;
-    RodinBackMotion.progress.value = 0.8;
+    DuchampBackMotion.progress.value = 0.8;
     await tester.pumpWidget(
       MaterialApp(
-        home: RodinPredictivePlane(
+        home: DuchampPredictivePlane(
           destination: GestureDetector(
             onTap: () => taps++,
             child: const SizedBox.expand(),
@@ -35,26 +35,26 @@ void main() {
     (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
-          home: RodinPredictivePlane(
+          home: DuchampPredictivePlane(
             destination: Text('Destination'),
             child: Text('Current page'),
           ),
         ),
       );
       expect(find.text('Destination'), findsNothing);
-      RodinBackMotion.progress.value = 0.5;
+      DuchampBackMotion.progress.value = 0.5;
       await tester.pump();
       expect(find.text('Destination'), findsOneWidget);
       final transforms = tester
           .widgetList<Transform>(
             find.descendant(
-              of: find.byType(RodinPredictivePlane),
+              of: find.byType(DuchampPredictivePlane),
               matching: find.byType(Transform),
             ),
           )
           .toList();
       expect(transforms.first.transform.storage[12], greaterThan(0));
-      RodinBackMotion.progress.value = 0;
+      DuchampBackMotion.progress.value = 0;
       await tester.pump();
       expect(find.text('Destination'), findsNothing);
       expect(find.text('Current page'), findsOneWidget);
@@ -64,12 +64,12 @@ void main() {
   testWidgets('nested predictive motion does not transform the parent twice', (
     tester,
   ) async {
-    RodinBackMotion.nested = true;
-    RodinBackMotion.progress.value = 0.5;
+    DuchampBackMotion.nested = true;
+    DuchampBackMotion.progress.value = 0.5;
     await tester.pumpWidget(
       const MaterialApp(
-        home: RodinPredictivePlane(
-          child: RodinPredictivePlane(
+        home: DuchampPredictivePlane(
+          child: DuchampPredictivePlane(
             nested: true,
             destination: Text('App list'),
             child: Text('App editor'),
@@ -90,13 +90,13 @@ void main() {
   testWidgets('reduced motion removes gesture transforms and arrival delay', (
     tester,
   ) async {
-    RodinBackMotion.progress.value = 0.7;
+    DuchampBackMotion.progress.value = 0.7;
     await tester.pumpWidget(
       const MaterialApp(
         home: MediaQuery(
           data: MediaQueryData(disableAnimations: true),
-          child: RodinPredictivePlane(
-            child: RodinArrival(order: 20, child: Text('Ready')),
+          child: DuchampPredictivePlane(
+            child: DuchampArrival(order: 20, child: Text('Ready')),
           ),
         ),
       ),
@@ -109,17 +109,17 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const MaterialApp(home: RodinArrival(order: 9, child: Text('Card'))),
+      const MaterialApp(home: DuchampArrival(order: 9, child: Text('Card'))),
     );
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));
     expect(tester.takeException(), isNull);
   });
   testWidgets('right-edge Back follows the right edge', (tester) async {
-    RodinBackMotion.rightEdge = true;
-    RodinBackMotion.progress.value = 0.6;
+    DuchampBackMotion.rightEdge = true;
+    DuchampBackMotion.progress.value = 0.6;
     await tester.pumpWidget(
-      const MaterialApp(home: RodinPredictivePlane(child: Text('Current'))),
+      const MaterialApp(home: DuchampPredictivePlane(child: Text('Current'))),
     );
     final transform = tester
         .widgetList<Transform>(find.byType(Transform))
@@ -132,38 +132,38 @@ void main() {
     var creations = 0;
     await tester.pumpWidget(
       MaterialApp(
-        home: RodinPredictivePlane(
+        home: DuchampPredictivePlane(
           destination: const Text('Preview destination'),
           child: _StateProbe(onCreate: () => creations++),
         ),
       ),
     );
     expect(creations, 1);
-    RodinBackMotion.progress.value = 0.4;
+    DuchampBackMotion.progress.value = 0.4;
     await tester.pump();
-    RodinBackMotion.progress.value = 0;
+    DuchampBackMotion.progress.value = 0;
     await tester.pump();
     expect(creations, 1);
   });
   test(
     'preview is bounded, mirrored, and shrinks to the Android surface size',
     () {
-      expect(RodinBackGeometry.scale(0), 1);
-      expect(RodinBackGeometry.scale(1), closeTo(0.9, 0.00001));
-      expect(RodinBackGeometry.shift(400, 1, false), 12);
-      expect(RodinBackGeometry.shift(400, 1, true), -12);
-      expect(RodinBackGeometry.shift(100, 1, true), 0);
-      expect(RodinBackGeometry.radius(1), 20);
+      expect(DuchampBackGeometry.scale(0), 1);
+      expect(DuchampBackGeometry.scale(1), closeTo(0.9, 0.00001));
+      expect(DuchampBackGeometry.shift(400, 1, false), 12);
+      expect(DuchampBackGeometry.shift(400, 1, true), -12);
+      expect(DuchampBackGeometry.shift(100, 1, true), 0);
+      expect(DuchampBackGeometry.radius(1), 20);
     },
   );
   testWidgets('gesture completion starts at the exact preview geometry', (
     tester,
   ) async {
-    RodinBackMotion.rightEdge = true;
-    RodinBackMotion.committedProgress = 0.65;
+    DuchampBackMotion.rightEdge = true;
+    DuchampBackMotion.committedProgress = 0.65;
     await tester.pumpWidget(
       MaterialApp(
-        home: RodinDetailTransition(
+        home: DuchampDetailTransition(
           animation: const AlwaysStoppedAnimation(1),
           forward: false,
           active: false,
@@ -173,50 +173,50 @@ void main() {
     );
     final scale = tester.widget<Transform>(
       find.descendant(
-        of: find.byType(RodinDetailTransition),
+        of: find.byType(DuchampDetailTransition),
         matching: find.byType(Transform),
       ),
     );
     expect(
       scale.transform.storage[0],
-      closeTo(RodinBackGeometry.scale(0.65), 0.00001),
+      closeTo(DuchampBackGeometry.scale(0.65), 0.00001),
     );
     final translation = tester.widget<FractionalTranslation>(
       find.descendant(
-        of: find.byType(RodinDetailTransition),
+        of: find.byType(DuchampDetailTransition),
         matching: find.byType(FractionalTranslation),
       ),
     );
-    final width = tester.getSize(find.byType(RodinDetailTransition)).width;
+    final width = tester.getSize(find.byType(DuchampDetailTransition)).width;
     expect(
       translation.translation.dx * width,
-      closeTo(RodinBackGeometry.shift(width, 0.65, true), 0.00001),
+      closeTo(DuchampBackGeometry.shift(width, 0.65, true), 0.00001),
     );
     final clip = tester.widget<ClipRRect>(
       find.descendant(
-        of: find.byType(RodinDetailTransition),
+        of: find.byType(DuchampDetailTransition),
         matching: find.byType(ClipRRect),
       ),
     );
     expect(
       clip.borderRadius,
-      BorderRadius.circular(RodinBackGeometry.radius(0.65)),
+      BorderRadius.circular(DuchampBackGeometry.radius(0.65)),
     );
   });
   testWidgets('root preview has no opaque wrapper hiding its destination', (
     tester,
   ) async {
-    RodinBackMotion.progress.value = 0.5;
+    DuchampBackMotion.progress.value = 0.5;
     await tester.pumpWidget(
       const MaterialApp(
         home: Stack(
           children: [
             ColoredBox(color: Colors.red, child: SizedBox.expand()),
-            RodinDetailTransition(
+            DuchampDetailTransition(
               animation: AlwaysStoppedAnimation(1),
               active: true,
               previewThrough: true,
-              child: RodinPredictivePlane(child: Text('Foreground')),
+              child: DuchampPredictivePlane(child: Text('Foreground')),
             ),
           ],
         ),
@@ -224,7 +224,7 @@ void main() {
     );
     expect(
       find.descendant(
-        of: find.byType(RodinDetailTransition),
+        of: find.byType(DuchampDetailTransition),
         matching: find.byType(Material),
       ),
       findsOneWidget,
@@ -240,25 +240,25 @@ void main() {
       value: 0.65,
     );
     controller.addListener(() {
-      RodinBackMotion.progress.value = controller.value.clamp(0.0, 1.0);
+      DuchampBackMotion.progress.value = controller.value.clamp(0.0, 1.0);
     });
-    RodinBackMotion.progress.value = controller.value;
+    DuchampBackMotion.progress.value = controller.value;
     await tester.pumpWidget(
       const MaterialApp(
-        home: RodinPredictivePlane(
+        home: DuchampPredictivePlane(
           destination: Text('Destination'),
           child: Text('Live page'),
         ),
       ),
     );
-    controller.animateWith(RodinMotion.cancelBack(controller.value));
+    controller.animateWith(DuchampMotion.cancelBack(controller.value));
     await tester.pumpAndSettle();
     expect(controller.value, 0);
-    expect(RodinBackMotion.progress.value, 0);
+    expect(DuchampBackMotion.progress.value, 0);
     expect(find.text('Destination'), findsNothing);
     expect(
       tester
-          .widget<RodinSurfaceSnapshot>(find.byType(RodinSurfaceSnapshot))
+          .widget<DuchampSurfaceSnapshot>(find.byType(DuchampSurfaceSnapshot))
           .enabled,
       false,
     );
@@ -270,15 +270,15 @@ void main() {
   testWidgets('nested preview keeps no duplicate full-size opaque surface', (
     tester,
   ) async {
-    RodinBackMotion.nested = true;
-    RodinBackMotion.progress.value = 0.5;
+    DuchampBackMotion.nested = true;
+    DuchampBackMotion.progress.value = 0.5;
     await tester.pumpWidget(
       const MaterialApp(
-        home: RodinDetailTransition(
+        home: DuchampDetailTransition(
           animation: AlwaysStoppedAnimation(1),
           active: true,
           previewThrough: true,
-          child: RodinPredictivePlane(
+          child: DuchampPredictivePlane(
             nested: true,
             destination: Text('Previous nested page'),
             child: Text('Nested foreground'),
@@ -290,7 +290,7 @@ void main() {
     // foreground. A third outer material would cover the preview again.
     expect(
       find.descendant(
-        of: find.byType(RodinDetailTransition),
+        of: find.byType(DuchampDetailTransition),
         matching: find.byType(Material),
       ),
       findsNWidgets(2),
@@ -312,15 +312,15 @@ void main() {
     controller.forward();
     await tester.pumpWidget(
       MaterialApp(
-        home: RodinDetailTransition(
+        home: DuchampDetailTransition(
           animation: controller,
           active: true,
-          child: RodinPredictivePlane(
+          child: DuchampPredictivePlane(
             child: Builder(
               builder: (context) {
                 builds++;
                 cacheExtents.add(
-                  RodinMotionViewportScope.scrollCacheExtentOf(context),
+                  DuchampMotionViewportScope.scrollCacheExtentOf(context),
                 );
                 return const SizedBox.expand();
               },
@@ -355,7 +355,7 @@ void main() {
           valueListenable: visible,
           child: ValueListenableBuilder<bool>(
             valueListenable: moving,
-            child: RodinMotionStreamBuilder<int>(
+            child: DuchampMotionStreamBuilder<int>(
               stream: stream.stream,
               readLatest: () => latest,
               builder: (value) {
@@ -364,7 +364,7 @@ void main() {
               },
             ),
             builder: (_, inFlight, child) =>
-                RodinMotionViewportScope(inFlight: inFlight, child: child!),
+                DuchampMotionViewportScope(inFlight: inFlight, child: child!),
           ),
           builder: (_, enabled, child) =>
               TickerMode(enabled: enabled, child: child!),
@@ -428,7 +428,7 @@ void main() {
             },
           ),
           builder: (_, capture, child) =>
-              RodinSurfaceSnapshot(enabled: capture, child: child!),
+              DuchampSurfaceSnapshot(enabled: capture, child: child!),
         ),
       ),
     );
@@ -448,14 +448,14 @@ void main() {
   testWidgets('nested Back also gates the parent telemetry presentation', (
     tester,
   ) async {
-    RodinBackMotion.nested = true;
-    RodinBackMotion.progress.value = 0.5;
+    DuchampBackMotion.nested = true;
+    DuchampBackMotion.progress.value = 0.5;
     await tester.pumpWidget(
       MaterialApp(
-        home: RodinPredictivePlane(
+        home: DuchampPredictivePlane(
           child: Builder(
             builder: (context) => Text(
-              'Cache ${RodinMotionViewportScope.scrollCacheExtentOf(context)}',
+              'Cache ${DuchampMotionViewportScope.scrollCacheExtentOf(context)}',
             ),
           ),
         ),
@@ -464,7 +464,7 @@ void main() {
     expect(find.text('Cache 0.0'), findsOneWidget);
     final scale = tester.widgetList<Transform>(find.byType(Transform)).last;
     expect(scale.transform.storage[0], 1);
-    RodinBackMotion.progress.value = 0;
+    DuchampBackMotion.progress.value = 0;
     await tester.pump();
     expect(find.text('Cache 250.0'), findsOneWidget);
     expect(tester.takeException(), isNull);

@@ -5,7 +5,7 @@ import shlex
 import subprocess
 import time
 
-CTL = "/data/adb/modules/nees_rodin_essential_backend/bin/rodin_ctl"
+CTL = "/data/adb/modules/saan_duchamp_essential/bin/duchamp_ctl"
 PACKAGE = "com.android.settings"
 
 def shell(command, root=False):
@@ -34,7 +34,7 @@ def wait_owner(expected, timeout=12):
     raise RuntimeError("Profile transition did not acknowledge: " + json.dumps(status))
 
 def preferences():
-    raw = shell("cat /data/adb/rodin-essential/state.conf", root=True)
+    raw = shell("cat /data/adb/duchamp-essential/state.conf", root=True)
     return dict(line.split("=", 1) for line in raw.splitlines() if "=" in line)
 
 def main():
@@ -68,14 +68,14 @@ def main():
         conflict = shell(CTL + " " + shlex.quote("SET perf 0"), root=True)
         assert conflict.startswith("ERR This control is owned"), conflict
         print("Conflicting global write rejected", flush=True)
-        shell("am force-stop io.github.neeschal.rodinessential")
+        shell("am force-stop com.saan.duchamp.essential")
         wait_owner(PACKAGE)
-        print("Profile remains active with Rodin Essential force-closed", flush=True)
-        old_pid = shell("pidof rodin_daemon", root=True)
+        print("Profile remains active with Duchamp Essential force-closed", flush=True)
+        old_pid = shell("pidof duchamp_daemon", root=True)
         shell("kill " + old_pid, root=True)
         deadline = time.monotonic() + 30
         while time.monotonic() < deadline:
-            new_pid = shell("pidof rodin_daemon || true", root=True)
+            new_pid = shell("pidof duchamp_daemon || true", root=True)
             if new_pid and new_pid != old_pid:
                 try:
                     active = wait_owner(PACKAGE, timeout=2)
@@ -114,7 +114,7 @@ def main():
         ctl("ACTION app.reset 0 " + PACKAGE)
         cleanup = ctl("GET app.controls")
         assert not cleanup["controls"] and cleanup["error"] is None, "Profile recovery is still pending: " + json.dumps(cleanup)
-        shell("am start -n io.github.neeschal.rodinessential/.RodinActivity")
+        shell("am start -n com.saan.duchamp.essential/.DuchampActivity")
         print("Temporary test profile removed; Per-App Controls left disabled", flush=True)
 
 if __name__ == "__main__":

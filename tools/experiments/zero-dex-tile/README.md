@@ -1,7 +1,7 @@
 # Zero-DEX tile lab — native callback experiment
 
-This is a separate local test app (`io.github.neeschal.rodinessential.tilelab`).
-It is **not** a bypass charging implementation and is not included in Rodin
+This is a separate local test app (`com.saan.duchamp.essential.tilelab`).
+It is **not** a bypass charging implementation and is not included in Duchamp
 Essential's normal build. Its only state is a harmless in-memory test flag.
 It does not connect to the daemon, request root, write charger nodes, change
 SELinux, patch SystemUI, redefine managed classes, or generate/load DEX.
@@ -41,11 +41,11 @@ is visible in
 ## Build
 
 Run `build.sh` in the configured Ubuntu/NDK environment with the existing local
-development `RODIN_KEYSTORE` and `RODIN_KEY_ALIAS`. It signs a separate APK and
+development `DUCHAMP_KEYSTORE` and `DUCHAMP_KEY_ALIAS`. It signs a separate APK and
 checks that no DEX/JAR/ODEX/VDEX payload is packaged. It does not install it.
 The JVMTI ABI header comes from the local JDK; JNI types come from the NDK.
 
-The manifest defaults to `debuggable=false`. Set `RODIN_TILE_LAB_MODE=debug`
+The manifest defaults to `debuggable=false`. Set `DUCHAMP_TILE_LAB_MODE=debug`
 (the default build mode) for the working debug experiment, or `release` for
 the non-debuggable negative control. The builder uses `aapt2 --debug-mode`
 only in debug mode and checks the resulting APK's debuggable flag. Artifacts
@@ -55,10 +55,10 @@ are separated under `out/zero-dex-tile-lab/debug/` and `release/`.
 
 1. Record the device's original Quick Settings tile list.
 2. Install only the selected lab-mode APK from `out/zero-dex-tile-lab/`.
-3. For the activity-fallback test, open Rodin Tile Lab; it immediately closes.
+3. For the activity-fallback test, open Duchamp Tile Lab; it immediately closes.
    For the wrapper test, do not open the activity at all.
-4. Add **Rodin Test Only** to Quick Settings. Do not confuse it with bypass.
-5. Click repeatedly and verify `RodinTileLab` logs report `TEST_CLICK` and the
+4. Add **Duchamp Test Only** to Quick Settings. Do not confuse it with bypass.
+5. Click repeatedly and verify `DuchampTileLab` logs report `TEST_CLICK` and the
    visible tile state changes. No battery state should change from this test.
 6. Close the activity normally and repeat; then kill only the lab process and
    repeat without reopening the activity. Compare warm and cold results.
@@ -71,7 +71,7 @@ one warm-process test. Never change the real app to debuggable for this feature.
 
 - Local ARM64 compilation, APK signature, zero-DEX payload and 16 KB ZIP
   alignment checks passed.
-- On the connected Rodin/HyperOS Android 16 (API 36) phone with SELinux Enforcing,
+- On the connected Duchamp/HyperOS Android 16 (API 36) phone with SELinux Enforcing,
   the 0.1 warm-process test produced native click callbacks and visible state
   changes. Repeated agent attachment initially produced duplicate callbacks;
   an idempotency guard fixed that bug. One subsequent tap produced one callback.

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rodin_essential_ui/main.dart';
+import 'package:duchamp_essential_ui/main.dart';
 
 void main() {
   for (final double inset in <double>[0, 24, 48]) {
@@ -16,9 +16,9 @@ void main() {
                 viewPadding: EdgeInsets.only(bottom: inset),
               ),
               child: Scaffold(
-                bottomNavigationBar: RodinBottomBar(
+                bottomNavigationBar: DuchampBottomBar(
                   controller: controller,
-                  currentRoot: RodinScreen.home,
+                  currentRoot: DuchampScreen.home,
                   onSelect: (_) {},
                 ),
               ),

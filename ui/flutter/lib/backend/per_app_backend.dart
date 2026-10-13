@@ -67,18 +67,18 @@ class PerAppBackend {
       Isolate.run(() => _exchange(command));
 
   static Future<String> _runLabels(String packages) =>
-      Isolate.run(() => _native(packages, 'rodin_host_app_labels'));
+      Isolate.run(() => _native(packages, 'duchamp_host_app_labels'));
 
   static Future<String> _runIcons(String packages) =>
-      Isolate.run(() => _native(packages, 'rodin_host_app_icons'));
+      Isolate.run(() => _native(packages, 'duchamp_host_app_icons'));
 
   static String _exchange(String command) {
-    return _native(command, 'rodin_backend_app_controls_exchange');
+    return _native(command, 'duchamp_backend_app_controls_exchange');
   }
 
   static String _native(String command, String symbol) {
     final DynamicLibrary host = DynamicLibrary.open(
-      'librodin_essential_host.so',
+      'libduchamp_essential_host.so',
     );
     final DynamicLibrary libc = DynamicLibrary.open('libc.so');
     final _Allocate allocate = libc.lookupFunction<_AllocateNative, _Allocate>(
@@ -93,7 +93,7 @@ class PerAppBackend {
     final List<int> bytes = utf8.encode(command);
     if (bytes.isEmpty ||
         bytes.length >
-            (symbol == 'rodin_backend_app_controls_exchange' ? 4096 : 262144))
+            (symbol == 'duchamp_backend_app_controls_exchange' ? 4096 : 262144))
       throw StateError('Profile request is too large');
     const int capacity = 1048576;
     final Pointer<Void> input = allocate(bytes.length);

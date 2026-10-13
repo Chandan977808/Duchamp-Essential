@@ -58,7 +58,7 @@ Released on 4 October 2026.
   wallpaper-based colours, palette styles, fine-tuning and reset controls.
 - An unpacked-ROM integration package with partition copy destinations,
   filesystem metadata, certificate-bound application policy and a full porter
-  guide. It contains Rodin-only policy additions and a merge tool using the
+  guide. It contains Duchamp-only policy additions and a merge tool using the
   porter's own target ROM policies, not whole-ROM replacement policies.
 - AOSP integration instructions and a scoped platform-policy preparation helper
   for the native touch timing interface.
@@ -72,7 +72,7 @@ Released on 4 October 2026.
 - Hardware reset invalidates applied-state caches, and bypass verification is
   retained across page changes without redundant unchanged kernel requests.
 - Dock clearance and card text wrapping improve readability. App-facing
-  descriptions use the full Rodin Essential name.
+  descriptions use the full Duchamp Essential name.
 - Refined Home, Control Hubs, Support, charging cards, confirmation dialogs and
   haptics, including a continuous bypass-threshold selector.
 - Root-module migration handles the signing-key rotation for user-installed
@@ -106,13 +106,13 @@ Released on 4 October 2026.
   bounded framework startup, transactional persistence, and daemon-first boot
   ordering that prevent a healthy KernelSU Next or Magisk backend from
   appearing Offline.
-- ROM-native 1000 Hz output now opens the dedicated Rodin input device directly
+- ROM-native 1000 Hz output now opens the dedicated Duchamp input device directly
   and no longer requests `SYS_PTRACE`, `DAC_OVERRIDE`, or `DAC_READ_SEARCH`.
   This removes the Android 17 platform-neverallow conflicts without granting
   the application root or privileged Android identity.
 - AOSP policy validation now distinguishes pre-existing OEM platform-policy
-  diagnostics from violations introduced by the Rodin integration while still
-  rejecting any Rodin neverallow failure.
+  diagnostics from violations introduced by the Duchamp integration while still
+  rejecting any Duchamp neverallow failure.
 - Application, Rust workspace, KernelSU/Magisk module, manifest, interface, and
   release metadata are synchronized at version 1.18.3 / code 11803.
 - The KernelSU/Magisk installer now supports signature-compatible ROM-native
@@ -161,7 +161,7 @@ Released on 4 October 2026.
 - The unused per-application profile subsystem and its package-query surface
   have been removed from the daemon, host, manifest, and interface.
 - AOSP integration now preserves an explicit APK signing identity, maps that
-  certificate and package to the dedicated `rodin_app` domain, labels only the
+  certificate and package to the dedicated `duchamp_app` domain, labels only the
   required exact generic Mali and Goodix sysfs paths, and keeps the v1.18.0
   touch permissions isolated to the daemon policy for device-tree review.
 - ROM-native policy again includes the narrowly scoped touch-HAL process and
@@ -189,8 +189,8 @@ Released on 4 October 2026.
 - CPU frequency requests are validated against the live driver table instead of
   accepting arbitrary values that the kernel may silently round.
 - Frequency targets remain fully independent from CPU governors and GPU modes.
-- CPU topology labels now identify the Dimensity 8400's three all-Cortex-A725
-  groups instead of the previous generic A520/A720/X4 labels.
+- CPU topology labels now identify the Dimensity 8300's three groups (4× Cortex-A510 + 3× Cortex-A715 + 1× Cortex-A715)
+  instead of the previous generic labels.
 - Native host/daemon protocol updated to 13.3 for CPU, display, and touch-path
   telemetry.
 
@@ -206,10 +206,10 @@ Released on 4 October 2026.
   Action reports the result and patch engine used.
 - The root-module daemon validates every socket peer with `SO_PEERCRED` and
   accepts hardware commands only from UID 0 or the exact Android UID assigned
-  to the bundled Rodin Essential package.
-- CPU range application now selects Rodin's OEM `thermal-nolimits` policy before
+  to the bundled Duchamp Essential package.
+- CPU range application now selects Duchamp's OEM `thermal-nolimits` policy before
   updating the per-policy Xiaomi thermal ceiling, MediaTek PowerHAL request, and
-  cpufreq limits. Exact locks remain at the full 2100/3000/3250 MHz policy
+  cpufreq limits. Exact locks remain at the full 2200/3200/3350 MHz policy
   maxima without changing a governor, and requests fail instead of being saved
   when live verification does not match.
 - The previous Xiaomi thermal configuration is saved before the first custom
@@ -226,7 +226,7 @@ Released on 4 October 2026.
   window. Saved controls remain daemon-owned when the app is force-stopped.
 - Touch persistence verifies the active THP timing instead of trusting cached
   state, so late vendor defaults are detected and corrected automatically.
-- Native 250 mode now applies Rodin's dedicated TouchFeature sensitivity latch
+- Native 250 mode now applies Duchamp's dedicated TouchFeature sensitivity latch
   instead of sharing the 500-mode calibration that could silently fall back to
   roughly 135 Hz while the HAL still reported 240 Hz.
 - The 1000 Hz output scheduler now discovers the actual multitouch event among
@@ -268,7 +268,7 @@ Released on 4 October 2026.
 - Extreme Beast, Gaming Dynamic, Stock Balanced, and Battery Saver transactions.
 - Live Mali frequency/load readback, GED state, governor, and power-policy UI.
 - Native 240/480 Hz touch timing and 1 ms Android output mode.
-- Goodix and FocalTech detection through the Rodin touch vendor stack.
+- Goodix and FocalTech detection through the Duchamp touch vendor stack.
 - UFS scheduler application and verification across detected logical units.
 - Motion-feel control and refined application transitions.
 - Combined KernelSU Next and Magisk module with bundled unprivileged APK.

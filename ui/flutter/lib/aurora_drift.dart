@@ -63,9 +63,9 @@ class _AuroraDriftState extends State<AuroraDrift>
     final int score = _game.score;
     _game.advance((now - previous).inMicroseconds / 1000000);
     if (_game.lives < lives)
-      RodinBackend.instance.haptic(2);
+      DuchampBackend.instance.haptic(2);
     else if (_game.score > score && _game.combo % 3 == 0)
-      RodinHaptics.tap();
+      DuchampHaptics.tap();
     final String hud =
         '${_game.score}:${_game.lives}:${_game.secondsLeft}:${_game.combo}:${_game.finished}';
     if (hud != _hud && mounted) setState(() => _hud = hud);
@@ -79,7 +79,7 @@ class _AuroraDriftState extends State<AuroraDrift>
   }
 
   void _start() {
-    RodinHaptics.confirm();
+    DuchampHaptics.confirm();
     _last = null;
     _recordSaved = false;
     _game.start();
@@ -99,7 +99,7 @@ class _AuroraDriftState extends State<AuroraDrift>
   }
 
   void _resume() {
-    RodinHaptics.confirm();
+    DuchampHaptics.confirm();
     _last = null;
     _game.resume();
     setState(() => _paused = false);
@@ -262,7 +262,7 @@ class _AuroraDriftState extends State<AuroraDrift>
           ),
           const SizedBox(height: 10),
           Text(
-            'Aurora · v$rodinVersionName · just for fun',
+            'Aurora · v$duchampVersionName · just for fun',
             style: TextStyle(fontSize: 10, color: colors.onSurfaceVariant),
           ),
         ],

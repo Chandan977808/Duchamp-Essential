@@ -1,6 +1,6 @@
 # AOSP ROM integration
 
-This guide describes source integration for Xiaomi Rodin. Each Android release
+This guide describes source integration for Xiaomi Duchamp. Each Android release
 and vendor base requires its own complete policy build and enforcing test;
 Android 17 compatibility is not established merely by copying this template.
 The installed application remains a normal Android app. A
@@ -16,7 +16,7 @@ dynamic partition on a running phone.
 
 The APK is imported with `presigned: true` and `preprocessed: true`, preserving
 the verified APK without a Soong rewrite. The same certificate is also used to
-assign only this package to the dedicated `rodin_app` SELinux domain. Choose one
+assign only this package to the dedicated `duchamp_app` SELinux domain. Choose one
 ROM-owned signing key and retain it for the full lifetime of this package.
 
 The private key is used only while exporting the bundle. It is never copied to
@@ -24,7 +24,7 @@ the bundle or committed to the ROM source tree. The bundle contains only the
 public X.509 certificate required by SELinux policy generation.
 
 Android will not install an update signed by a different certificate. If a ROM
-previously shipped Rodin Essential with another key, keep that key or plan an
+previously shipped Duchamp Essential with another key, keep that key or plan an
 explicit uninstall/data migration. Do not work around Android's signature
 check by automatically deleting the user's app data.
 
@@ -44,26 +44,26 @@ for the current one. The private release key is not distributed to maintainers.
 From the repository root:
 
 ```bash
-RODIN_KEYSTORE=/absolute/path/rom-app.jks \
-RODIN_KEY_ALIAS=rodin-essential \
-RODIN_KEYSTORE_PASS='store-password' \
-RODIN_KEY_PASS='key-password' \
+DUCHAMP_KEYSTORE=/absolute/path/rom-app.jks \
+DUCHAMP_KEY_ALIAS=duchamp-essential \
+DUCHAMP_KEYSTORE_PASS='store-password' \
+DUCHAMP_KEY_PASS='key-password' \
   ./tools/export-aosp-bundle.sh
 ```
 
 All four signing variables are forwarded to the normal verified release build.
 The export stops if the key is missing, the APK is not signed, a binary is not
 ARM64, or the APK contains managed classes outside the approved framework
-adapters. In v1.18.5, `RodinActivity` and `BypassTileService` provide predictive
+adapters. In v1.18.5, `DuchampActivity` and `BypassTileService` provide predictive
 Back and the Quick Settings tile. UI and hardware logic remain Flutter AOT/Rust;
 do not remove `classes.dex` or either manifest component from the release APK.
 
 The generated directory has this layout:
 
 ```text
-RodinEssential-<timestamp>/
+DuchampEssential-<timestamp>/
 ├── Android.bp
-├── BoardConfigRodinEssential.mk
+├── BoardConfigDuchampEssential.mk
 ├── README.md
 ├── SHA256SUMS
 ├── SIGNING-CERTIFICATE.txt
@@ -73,34 +73,34 @@ RodinEssential-<timestamp>/
 ├── tools/
 │   └── prepare-aosp-touch-policy.py
 ├── prebuilt/
-│   ├── RodinEssential.apk
-│   ├── RodinEssential.x509.pem
-│   ├── rodin_ctl
-│   └── rodin_daemon
-├── rodin-essential.mk
-├── rodin_daemon.rc
+│   ├── DuchampEssential.apk
+│   ├── DuchampEssential.x509.pem
+│   ├── duchamp_ctl
+│   └── duchamp_daemon
+├── duchamp-essential.mk
+├── duchamp_daemon.rc
 └── sepolicy/
     ├── product/
     │   ├── public/
-    │   │   └── rodin_daemon.te
+    │   │   └── duchamp_daemon.te
     │   └── private/
     │       ├── file_contexts
     │       ├── keys.conf
     │       ├── mac_permissions.xml
-    │       ├── rodin_app.te
-    │       ├── rodin_daemon.te
+    │       ├── duchamp_app.te
+    │       ├── duchamp_daemon.te
     │       └── seapp_contexts
     └── vendor/
         ├── genfs_contexts
-        └── rodin_daemon.te
+        └── duchamp_daemon.te
 ```
 
 Verify the export before staging it:
 
 ```bash
-cd dist/aosp/RodinEssential-<timestamp>
+cd dist/aosp/DuchampEssential-<timestamp>
 sha256sum -c SHA256SUMS
-openssl x509 -in prebuilt/RodinEssential.x509.pem -noout -fingerprint -sha256
+openssl x509 -in prebuilt/DuchampEssential.x509.pem -noout -fingerprint -sha256
 ```
 
 ## 3. Stage the bundle in the ROM tree
@@ -108,79 +108,79 @@ openssl x509 -in prebuilt/RodinEssential.x509.pem -noout -fingerprint -sha256
 The helper can build, verify, stage, and wire the bundle in one command:
 
 ```bash
-RODIN_KEYSTORE=/absolute/path/rom-app.jks \
-RODIN_KEY_ALIAS=rodin-essential \
-RODIN_KEYSTORE_PASS='store-password' \
-RODIN_KEY_PASS='key-password' \
+DUCHAMP_KEYSTORE=/absolute/path/rom-app.jks \
+DUCHAMP_KEY_ALIAS=duchamp-essential \
+DUCHAMP_KEYSTORE_PASS='store-password' \
+DUCHAMP_KEY_PASS='key-password' \
   ./tools/integrate-aosp-rom.sh /absolute/path/to/aosp \
-    device/xiaomi/rodin/device.mk \
-    device/xiaomi/rodin/BoardConfig.mk
+    device/xiaomi/duchamp/device.mk \
+    device/xiaomi/duchamp/BoardConfig.mk
 ```
 
-It creates `vendor/rodin-essential`, refuses to replace an existing directory,
+It creates `vendor/duchamp-essential`, refuses to replace an existing directory,
 validates that both device-tree files are inside the selected checkout, and
 adds each exact include only if missing. Pass only the AOSP root for stage-only
 operation. For manual integration, copy the complete exported directory to the
 same path.
 
-The automated form adds this product fragment to the selected Rodin product
+The automated form adds this product fragment to the selected Duchamp product
 makefile:
 
 ```makefile
-$(call inherit-product, vendor/rodin-essential/rodin-essential.mk)
+$(call inherit-product, vendor/duchamp-essential/duchamp-essential.mk)
 ```
 
 It adds this policy fragment to the selected BoardConfig:
 
 ```makefile
-include vendor/rodin-essential/BoardConfigRodinEssential.mk
+include vendor/duchamp-essential/BoardConfigDuchampEssential.mk
 ```
 
 The resulting modules are installed as follows:
 
 ```text
-/product/app/RodinEssential/RodinEssential.apk
-/product/bin/rodin_daemon
-/product/etc/init/rodin_daemon.rc
+/product/app/DuchampEssential/DuchampEssential.apk
+/product/bin/duchamp_daemon
+/product/etc/init/duchamp_daemon.rc
 ```
 
-`rodin_ctl` is added through `PRODUCT_PACKAGES_DEBUG`, so it is installed only
+`duchamp_ctl` is added through `PRODUCT_PACKAGES_DEBUG`, so it is installed only
 on `userdebug` and `eng` builds.
 
 The APK is not platform-signed, privileged, or assigned UID 1000. Preserving its
 own certificate is intentional: `keys.conf`, `mac_permissions.xml`, and
-`seapp_contexts` bind that certificate and exact package name to `rodin_app`.
+`seapp_contexts` bind that certificate and exact package name to `duchamp_app`.
 
 ## 4. SELinux ownership model
 
 The policy is split by responsibility:
 
-- Product public policy exports the `rodin_daemon` domain and executable type
+- Product public policy exports the `duchamp_daemon` domain and executable type
   so the vendor policy can reference them.
 - Product private policy owns the init transition, daemon state labels,
   certificate-bound app domain, system-service access, and private control
   socket rule.
-- Vendor policy owns access to Rodin kernel nodes and Xiaomi/MediaTek services.
+- Vendor policy owns access to Duchamp kernel nodes and Xiaomi/MediaTek services.
 
 Production socket access is intentionally limited to:
 
 ```text
-rodin_app -> rodin_daemon:unix_stream_socket connectto
+duchamp_app -> duchamp_daemon:unix_stream_socket connectto
 ```
 
 Android assigns the app a per-user MCS category while the init daemon runs at
 `s0`. The daemon is therefore an `mlstrustedsubject`; otherwise the platform's
 MLS stream-socket constraint rejects the connection even when the type-
 enforcement rule above is present. Only the daemon receives this attribute.
-The app remains category-isolated, and the explicit `rodin_app` rule remains
+The app remains category-isolated, and the explicit `duchamp_app` rule remains
 the client allowlist.
 
 Do not replace it with an `appdomain` or `untrusted_app` allow. That would let
-unrelated applications issue hardware commands. `rodin_ctl` access from the
+unrelated applications issue hardware commands. `duchamp_ctl` access from the
 shell is compiled only for `userdebug` and `eng` builds.
 
 The bundled policy assigns dedicated types only to the generic sysfs paths that
-Rodin Essential must write:
+Duchamp Essential must write:
 
 ```text
 /sys/devices/platform/soc/13000000.mali/devfreq/13000000.mali
@@ -188,7 +188,7 @@ Rodin Essential must write:
 /sys/devices/platform/goodix_ts.0
 ```
 
-The first two cover the Mali devfreq layouts seen across Rodin vendor bases.
+The first two cover the Mali devfreq layouts seen across Duchamp vendor bases.
 The last path is the Goodix fallback used only when a port omits Xiaomi's touch
 AIDL service.
 
@@ -198,7 +198,7 @@ device tree already labels one of these exact paths, reconcile the duplicate
 
 ## 5. Validate the target vendor policy
 
-The template matches the labels observed on Rodin's vendor stack, including:
+The template matches the labels observed on Duchamp's vendor stack, including:
 
 ```text
 hal_touchfeature_xiaomi_default
@@ -255,12 +255,12 @@ without reviewing the path and operation.
 
 ### CPU exact-lock policy
 
-CPU frequency ranges require Rodin's `thermal_message/sconfig` and
+CPU frequency ranges require Duchamp's `thermal_message/sconfig` and
 `thermal_message/cpu_limits` nodes through `sysfs_therm`, plus
 `powerhal_cpu_ctrl/perfserv_freq` through `proc_powerhal_cpu_ctrl`. The daemon
 uses OEM mode 6 only while a custom CPU range exists and restores the previous
 mode after the last reset. Thermal daemons remain running; these permissions
-belong only to `rodin_daemon`.
+belong only to `duchamp_daemon`.
 
 ### Native touch policy and required platform review
 
@@ -271,14 +271,14 @@ The corresponding vendor rules permit process-memory access only to
 cross-UID access, not just a Binder call. Both Goodix and FocalTech support
 depends on the compatible Xiaomi THP stack; a panel name alone is insufficient.
 
-`RODIN_TOUCH_DIRECT_INPUT=1` changes the 1000 Hz output path to direct input
+`DUCHAMP_TOUCH_DIRECT_INPUT=1` changes the 1000 Hz output path to direct input
 access. It does **not** remove the native 240/480 Hz process-memory dependency.
 The output path is not proof of 1000 physical panel scans per second.
 
 Modern stock AOSP neverallows restrict `SYS_PTRACE` and `DAC_OVERRIDE`. Product
 and vendor allow rules alone cannot override them. To retain this backend, the
 ROM maintainer must explicitly review a platform exception. Preview it from
-the Rodin Essential checkout:
+the Duchamp Essential checkout:
 
 ```bash
 python3 tools/prepare-aosp-touch-policy.py /absolute/path/to/aosp
@@ -286,9 +286,9 @@ python3 tools/prepare-aosp-touch-policy.py /absolute/path/to/aosp
 python3 tools/prepare-aosp-touch-policy.py /absolute/path/to/aosp --apply
 ```
 
-The helper declares `rodin_native_touch_access` in platform public attributes,
+The helper declares `duchamp_native_touch_access` in platform public attributes,
 excludes that attribute from the SYS_PTRACE capability neverallow, and adds it
-to the DAC_OVERRIDE allowlist. Only `rodin_daemon` is assigned the attribute in
+to the DAC_OVERRIDE allowlist. Only `duchamp_daemon` is assigned the attribute in
 the product policy. It preserves the remaining neverallows and refuses unknown
 or partially modified rule layouts. It does not modify a compiled OEM policy.
 Keep this change in the ROM's platform-policy source and review it again when
@@ -313,7 +313,7 @@ For an additional platform neverallow probe, point it at the target ROM's
 compiled platform CIL after the reviewed source exception:
 
 ```bash
-RODIN_PLAT_SEPOLICY_CIL=/absolute/path/to/plat_sepolicy.cil \
+DUCHAMP_PLAT_SEPOLICY_CIL=/absolute/path/to/plat_sepolicy.cil \
   ./tools/test-aosp-integration.sh
 ```
 
@@ -323,13 +323,13 @@ This probe is not a substitute for building the target device policy. In the
 ROM tree, run:
 
 ```bash
-m RodinEssential rodin_daemon rodin_ctl
+m DuchampEssential duchamp_daemon duchamp_ctl
 m selinux_policy
 m sepolicy_tests
 m treble_sepolicy_tests
 ```
 
-Confirm the generated product MAC-permissions file contains the Rodin
+Confirm the generated product MAC-permissions file contains the Duchamp
 certificate mapping and that the APK certificate matches the exported PEM.
 Keep ELF dependency checks enabled; do not use `check_elf_files: false` to hide
 a mismatched prebuilt.
@@ -340,13 +340,13 @@ a mismatched prebuilt.
 
 Update the APK and native binaries together with the current policy template.
 Per-App Controls adds package-service lookup and a passive foreground event
-stream through `read_logd(rodin_daemon)`. Memory DVFS/UFS uses the exact devfreq
+stream through `read_logd(duchamp_daemon)`. Memory DVFS/UFS uses the exact devfreq
 labels in `sepolicy/vendor/genfs_contexts`: metadata is read-only, and only
 supported `min_freq`/`max_freq` requests are writable. Reconcile labels with
 your device tree rather than adding duplicate `genfscon` entries.
 Keep the existing `sysfs_dvfsrc_devfreq` RAM parent label. The included vendor
 rules preserve MediaTek PowerHAL access to the newly labeled request nodes and
-UFS metadata, so labeling Rodin controls does not block the ROM's controller.
+UFS metadata, so labeling Duchamp controls does not block the ROM's controller.
 
 Keep the charging parent traversal rules described above. A working IPC link
 does not imply that the daemon can traverse the battery node's real sysfs path.
@@ -356,10 +356,10 @@ for the tile; retain the signed APK's manifest and framework adapter.
 At `post-fs-data`, init creates and labels:
 
 ```text
-/data/system/rodin-essential
+/data/system/duchamp-essential
 ```
 
-After `sys.boot_completed=1`, init starts `rodin_daemon` and restarts it after
+After `sys.boot_completed=1`, init starts `duchamp_daemon` and restarts it after
 an unexpected exit. The daemon loads its saved state and restores hardware
 domains after framework and vendor services settle. Saved touch state follows
 the same daemon-owned boot, wake, and live-readback restoration as the other
@@ -381,7 +381,7 @@ but start with new default state.
 The public KernelSU/Magisk ZIP can temporarily update a native installation
 only when the ROM APK and release APK have the same signing certificate. The
 module installs an Android system-app update under `/data`, stops
-`rodin_daemon` through init before starting its own supervisor, and uses this
+`duchamp_daemon` through init before starting its own supervisor, and uses this
 same native state directory. Removing the module rolls the package-manager
 update back to the `/product` APK and starts native init again. It never overlays
 or rewrites a partition file, and two daemons are never allowed to run together.
@@ -399,37 +399,37 @@ On a freshly flashed `userdebug` build:
 ```bash
 adb root
 adb shell getenforce
-adb shell ls -lZ /product/bin/rodin_daemon
-adb shell ps -AZ | grep -E 'rodin_(app|daemon)|rodin_daemon'
-adb shell /product/bin/rodin_ctl PING
-adb shell /product/bin/rodin_ctl GET snapshot
-adb shell dumpsys package io.github.neeschal.rodinessential \
+adb shell ls -lZ /product/bin/duchamp_daemon
+adb shell ps -AZ | grep -E 'duchamp_(app|daemon)|duchamp_daemon'
+adb shell /product/bin/duchamp_ctl PING
+adb shell /product/bin/duchamp_ctl GET snapshot
+adb shell dumpsys package com.saan.duchamp.essential \
   | grep -E 'userId=|seInfo=|versionCode='
-adb shell ls -ldZ /data/system/rodin-essential
+adb shell ls -ldZ /data/system/duchamp-essential
 ```
 
 Expected results:
 
 - SELinux is `Enforcing`.
-- App domain is `u:r:rodin_app:s0` with an ordinary `_app` UID.
-- Daemon executable type is `u:object_r:rodin_daemon_exec:s0`.
-- Daemon domain is `u:r:rodin_daemon:s0` and daemon UID is root.
+- App domain is `u:r:duchamp_app:s0` with an ordinary `_app` UID.
+- Daemon executable type is `u:object_r:duchamp_daemon_exec:s0`.
+- Daemon domain is `u:r:duchamp_daemon:s0` and daemon UID is root.
 - Ping returns `OK PONG 13.6`.
-- State directory type is `rodin_daemon_data_file`.
+- State directory type is `duchamp_daemon_data_file`.
 
 Verify the installed APK's framework-only adapter allowlist from this checkout:
 
 ```bash
-adb pull /product/app/RodinEssential/RodinEssential.apk /tmp/RodinEssential.apk
+adb pull /product/app/DuchampEssential/DuchampEssential.apk /tmp/DuchampEssential.apk
 ANDROID_SDK_ROOT=/absolute/path/to/android-sdk \
-  bash tools/check-platform-dex.sh /tmp/RodinEssential.apk
+  bash tools/check-platform-dex.sh /tmp/DuchampEssential.apk
 ```
 
 Perform a full persistence pass:
 
 1. Apply representative GPU, CPU, UFS, touch, display, charging, and ZRAM
    settings.
-2. Compare the UI and `rodin_ctl GET snapshot` with live kernel/vendor readback.
+2. Compare the UI and `duchamp_ctl GET snapshot` with live kernel/vendor readback.
 3. Force-stop the package and verify the settings remain active.
 4. Reboot, wait for boot completion and the vendor settling window, then verify
    every saved setting again.
@@ -450,8 +450,8 @@ certificate, build files, and policy together. Never mix protocol versions or
 certificates from separate exports.
 
 To remove the integration, remove the `PRODUCT_PACKAGES` and BoardConfig include
-lines, then delete `vendor/rodin-essential`. A clean ROM build will omit the
-components. Retain `/data/system/rodin-essential` for a future reinstall or
+lines, then delete `vendor/duchamp-essential`. A clean ROM build will omit the
+components. Retain `/data/system/duchamp-essential` for a future reinstall or
 remove it only through an explicit user-visible migration.
 
 For porters editing extracted ROM images, use

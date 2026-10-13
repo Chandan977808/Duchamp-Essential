@@ -21,7 +21,7 @@ pub fn start_background() {
 
 pub fn set_target_hz(target: i32) -> Result<(), String> {
     if target != 0 && target != 1000 {
-        return Err(format!("unsupported Rodin resampling target {target}"));
+        return Err(format!("unsupported Duchamp resampling target {target}"));
     }
 
     TARGET_HZ.store(target, Ordering::Release);
@@ -43,7 +43,7 @@ pub fn set_target_hz(target: i32) -> Result<(), String> {
     }
 
     Err(format!(
-        "Rodin touch resampler did not attach (code {})",
+        "Duchamp touch resampler did not attach (code {})",
         LAST_ERROR.load(Ordering::Acquire)
     ))
 }
@@ -373,7 +373,7 @@ mod android {
         // never needs cross-domain process tracing or /proc fd inspection.
         // Root modules leave this unset and retain the v1.18.0 service-fd
         // path with the existing direct-device compatibility fallback.
-        if std::env::var("RODIN_TOUCH_DIRECT_INPUT").as_deref() == Ok("1") {
+        if std::env::var("DUCHAMP_TOUCH_DIRECT_INPUT").as_deref() == Ok("1") {
             return direct_output_handle().map(|(file, path)| (file, path, 2, None));
         }
 
@@ -399,7 +399,7 @@ mod android {
     }
 
     fn frame_is_injected(events: &[InputEvent], marker_code: u16) -> bool {
-        // Rodin-generated frames finish with a temporary width change followed
+        // Duchamp-generated frames finish with a temporary width change followed
         // by its original value. Both values occur before SYN_REPORT, so
         // Android only observes the restored valid pointer state. The pair
         // survives kernel event coalescing and lets us ignore our own output.

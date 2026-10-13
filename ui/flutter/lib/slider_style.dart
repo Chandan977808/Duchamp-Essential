@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// One value-bubble treatment for both exact locks and dynamic ranges.
-SliderThemeData rodinSliderTheme({
+SliderThemeData duchampSliderTheme({
   required Color accent,
   required Color outline,
 }) {

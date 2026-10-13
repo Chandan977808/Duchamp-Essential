@@ -24,7 +24,7 @@ engine revision. If the engine checkout is not under the Flutter SDK, point the
 engine build script at it:
 
 ```bash
-RODIN_FLUTTER_ENGINE_SRC=/absolute/path/to/engine/src \
+DUCHAMP_FLUTTER_ENGINE_SRC=/absolute/path/to/engine/src \
   ./tools/build-flutter-engine.sh
 ```
 
@@ -38,42 +38,42 @@ runtime/flutter-engine/prebuilt/android-arm64/icudtl.dat
 ## Build the application and daemon
 
 ```bash
-RODIN_BUILD_ONLY=1 ./build-and-install.sh
+DUCHAMP_BUILD_ONLY=1 ./build-and-install.sh
 ```
 
 The output directory contains:
 
 ```text
-Rodin-Essential.apk
-host-cargo/aarch64-linux-android/release/rodin_daemon
-host-cargo/aarch64-linux-android/release/rodin_ctl
+Duchamp-Essential.apk
+host-cargo/aarch64-linux-android/release/duchamp_daemon
+host-cargo/aarch64-linux-android/release/duchamp_ctl
 apk-files.txt
 ```
 
-Without `RODIN_BUILD_ONLY=1`, the script installs the APK on the connected
+Without `DUCHAMP_BUILD_ONLY=1`, the script installs the APK on the connected
 device and updates the development root-module backend. ROM release automation
 should always use build-only mode or `tools/export-aosp-bundle.sh`.
 
 ## Signing
 
-An omitted `RODIN_KEYSTORE` creates a stable local development key at
-`out/signing/rodin-essential-development.jks`. The ignored key is generated
+An omitted `DUCHAMP_KEYSTORE` creates a stable local development key at
+`out/signing/duchamp-essential-development.jks`. The ignored key is generated
 once and reused so repeated local builds remain update-compatible. Nothing
 under `android/package` contains private signing material.
 
 Supply release credentials through environment variables:
 
 ```bash
-RODIN_KEYSTORE=/absolute/path/release.jks \
-RODIN_KEY_ALIAS=release \
-RODIN_KEYSTORE_PASS='store-password' \
-RODIN_KEY_PASS='key-password' \
-RODIN_BUILD_ONLY=1 ./build-and-install.sh
+DUCHAMP_KEYSTORE=/absolute/path/release.jks \
+DUCHAMP_KEY_ALIAS=release \
+DUCHAMP_KEYSTORE_PASS='store-password' \
+DUCHAMP_KEY_PASS='key-password' \
+DUCHAMP_BUILD_ONLY=1 ./build-and-install.sh
 ```
 
 AOSP exports require an explicit persistent key. The imported APK remains
 presigned with that certificate, and the exported public PEM binds its exact
-package name to the dedicated `rodin_app` domain. The private key remains with
+package name to the dedicated `duchamp_app` domain. The private key remains with
 the ROM maintainer.
 
 ## Local checks
@@ -83,7 +83,7 @@ Run before committing:
 ```bash
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
-cargo test -p rodin-essential-daemon
+cargo test -p duchamp-essential-daemon
 dart format --output=none --set-exit-if-changed ui/flutter/lib
 (cd ui/flutter && flutter analyze)
 bash -n build-and-install.sh
@@ -115,10 +115,10 @@ Build verification additionally checks:
 ## AOSP export
 
 ```bash
-RODIN_KEYSTORE=/absolute/path/rom-app.jks \
-RODIN_KEY_ALIAS=rodin-essential \
-RODIN_KEYSTORE_PASS='store-password' \
-RODIN_KEY_PASS='key-password' \
+DUCHAMP_KEYSTORE=/absolute/path/rom-app.jks \
+DUCHAMP_KEY_ALIAS=duchamp-essential \
+DUCHAMP_KEYSTORE_PASS='store-password' \
+DUCHAMP_KEY_PASS='key-password' \
   ./tools/export-aosp-bundle.sh
 ```
 
@@ -128,13 +128,13 @@ absolute or relative destination as its first argument when required.
 To build, stage, and wire the integration directly in an AOSP checkout:
 
 ```bash
-RODIN_KEYSTORE=/absolute/path/rom-app.jks \
-RODIN_KEY_ALIAS=rodin-essential \
-RODIN_KEYSTORE_PASS='store-password' \
-RODIN_KEY_PASS='key-password' \
+DUCHAMP_KEYSTORE=/absolute/path/rom-app.jks \
+DUCHAMP_KEY_ALIAS=duchamp-essential \
+DUCHAMP_KEYSTORE_PASS='store-password' \
+DUCHAMP_KEY_PASS='key-password' \
   ./tools/integrate-aosp-rom.sh /absolute/path/to/aosp \
-    device/xiaomi/rodin/device.mk \
-    device/xiaomi/rodin/BoardConfig.mk
+    device/xiaomi/duchamp/device.mk \
+    device/xiaomi/duchamp/BoardConfig.mk
 ```
 
 The helper adds the exact product and BoardConfig includes idempotently and
@@ -144,10 +144,10 @@ operation with no device-tree edits.
 ## KernelSU Next and Magisk module
 
 ```bash
-RODIN_KEYSTORE=/absolute/path/release.jks \
-RODIN_KEY_ALIAS=release \
-RODIN_KEYSTORE_PASS='store-password' \
-RODIN_KEY_PASS='key-password' \
+DUCHAMP_KEYSTORE=/absolute/path/release.jks \
+DUCHAMP_KEY_ALIAS=release \
+DUCHAMP_KEYSTORE_PASS='store-password' \
+DUCHAMP_KEY_PASS='key-password' \
   ./tools/build-kernelsu-next-module.sh
 ```
 
@@ -167,7 +167,7 @@ neither patches live SELinux policy nor converts the APK into a privileged
 application. A policy that already permits the direct connection may use it.
 Installation from recovery is not supported.
 
-On a ROM with native Rodin Essential integration, the module becomes an update
+On a ROM with native Duchamp Essential integration, the module becomes an update
 layer only when Android accepts the bundled APK as a signature-compatible
 system-app update. At boot it stops the native init service, shares the native
 state directory, and then starts the module daemon. Module removal uses
@@ -176,13 +176,13 @@ No partition file is replaced. Cross-signature native updates remain rejected
 because bypassing Android's package identity would either fail package scanning
 or require destructive app removal.
 
-The builder requires a persistent `RODIN_KEYSTORE`; it never creates a
+The builder requires a persistent `DUCHAMP_KEYSTORE`; it never creates a
 disposable module signing identity. Reuse the same key for all published module
 versions so Android can update the bundled application without removing user
 data. For the one signing-identity reset, the module installer first attempts a
 normal update. If Android reports `INSTALL_FAILED_UPDATE_INCOMPATIBLE` for a
 user-installed copy, it removes that package and installs the bundled APK while
-leaving `/data/adb/rodin-essential` untouched. This resets application-local
+leaving `/data/adb/duchamp-essential` untouched. This resets application-local
 preferences once. A cross-signed ROM-native system package is still rejected;
 only its ROM maintainer can replace it safely.
 

@@ -6,7 +6,7 @@
 #include <jvmti.h>
 #include <cstdio>
 
-#define LOG(...) __android_log_print(ANDROID_LOG_INFO, "RodinTileLab", __VA_ARGS__)
+#define LOG(...) __android_log_print(ANDROID_LOG_INFO, "DuchampTileLab", __VA_ARGS__)
 
 static jmethodID click_method = nullptr;
 static jmethodID listen_method = nullptr;
@@ -136,7 +136,7 @@ extern "C" JNIEXPORT void ANativeActivity_onCreate(ANativeActivity* activity, vo
     jmethodID attach = debug ? env->GetStaticMethodID(debug, "attachJvmtiAgent",
         "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/ClassLoader;)V") : nullptr;
     if (!attach || clear_exception(env, "attachJvmtiAgent method")) return;
-    jstring library = env->NewStringUTF("librodin_tile_lab.so");
+    jstring library = env->NewStringUTF("libduchamp_tile_lab.so");
     env->CallStaticVoidMethod(debug, attach, library, nullptr, loader);
     bool failed = clear_exception(env, "attachJvmtiAgent");
     LOG("ACTIVITY_ATTACHED success=%d; this experiment never controls charging", !failed);

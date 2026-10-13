@@ -1,6 +1,6 @@
-id=nees_rodin_essential_backend
-name=Rodin Essential
+id=saan_duchamp_essential
+name=Duchamp Essential
 version=v1.18.5
 versionCode=11805
-author=NEESCHAL-3
-description=KernelSU Next and Magisk package for Rodin Essential. Keeps the Android app non-root and runs hardware controls through an authenticated root daemon.
+author=SaanOS
+description=KernelSU Next and Magisk package for Duchamp Essential. Keeps the Android app non-root and runs hardware controls through an authenticated root daemon.

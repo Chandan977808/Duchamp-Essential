@@ -1,12 +1,12 @@
 [package]
-name = "rodin-essential-host"
+name = "duchamp-essential-host"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
 
 [lib]
-name = "rodin_essential_host"
+name = "duchamp_essential_host"
 crate-type = ["cdylib"]
 
 [dependencies]

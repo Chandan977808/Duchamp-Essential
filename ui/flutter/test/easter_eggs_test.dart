@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rodin_essential_ui/main.dart';
+import 'package:duchamp_essential_ui/main.dart';
 
 void main() {
   testWidgets(
@@ -8,7 +8,7 @@ void main() {
     (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
-          home: Scaffold(body: RodinVersionSecret(version: 'v1.18.5')),
+          home: Scaffold(body: DuchampVersionSecret(version: 'v1.18.5')),
         ),
       );
       for (int i = 0; i < 4; i++) {
@@ -30,10 +30,10 @@ void main() {
       await tester.pump();
       expect(find.text('Resume'), findsOneWidget);
       expect(tester.takeException(), isNull);
-      expect(RodinNestedBackController.handleBack(), isTrue);
+      expect(DuchampNestedBackController.handleBack(), isTrue);
       await tester.pumpAndSettle();
       expect(find.text('Aurora Drift'), findsNothing);
-      RodinNestedBackController.handleBack();
+      DuchampNestedBackController.handleBack();
       await tester.pumpAndSettle();
       await tester.pumpWidget(const SizedBox());
     },
@@ -56,7 +56,7 @@ void main() {
               ),
               child: child!,
             ),
-            home: const Scaffold(body: RodinVersionSecret(version: 'v1.18.4')),
+            home: const Scaffold(body: DuchampVersionSecret(version: 'v1.18.4')),
           ),
         );
         for (int i = 0; i < 4; i++) {
@@ -71,14 +71,14 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('Aurora Drift'), findsOneWidget);
         expect(tester.takeException(), isNull);
-        expect(RodinNestedBackController.handleBack(), isTrue);
+        expect(DuchampNestedBackController.handleBack(), isTrue);
         await tester.pumpAndSettle();
         expect(find.text('Aurora Drift'), findsNothing);
         await tester.ensureVisible(find.text('One more joke'));
         await tester.tap(find.text('One more joke'));
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
-        RodinNestedBackController.handleBack();
+        DuchampNestedBackController.handleBack();
         await tester.pumpAndSettle();
         await tester.pumpWidget(const SizedBox());
       },
@@ -89,14 +89,14 @@ void main() {
   ) async {
     await tester.pumpWidget(
       const MaterialApp(
-        home: Scaffold(body: RodinVersionSecret(version: 'v1.18.4')),
+        home: Scaffold(body: DuchampVersionSecret(version: 'v1.18.4')),
       ),
     );
     for (int i = 0; i < 3; i++) {
       await tester.tap(find.text('v1.18.4'));
       await tester.pump(const Duration(milliseconds: 100));
     }
-    expect(find.byType(RodinSecretRoom), findsNothing);
+    expect(find.byType(DuchampSecretRoom), findsNothing);
     await tester.tap(find.text('v1.18.4'));
     await tester.pumpAndSettle();
     expect(find.text('Four taps. Zero secret overclock.'), findsOneWidget);
@@ -106,9 +106,9 @@ void main() {
       find.text('I asked the GPU for a sandwich. It rendered the bread.'),
       findsOneWidget,
     );
-    expect(RodinNestedBackController.handleBack(), isTrue);
+    expect(DuchampNestedBackController.handleBack(), isTrue);
     await tester.pumpAndSettle();
-    expect(find.byType(RodinSecretRoom), findsNothing);
+    expect(find.byType(DuchampSecretRoom), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
 
@@ -117,7 +117,7 @@ void main() {
   ) async {
     await tester.pumpWidget(
       const MaterialApp(
-        home: Scaffold(body: RodinVersionSecret(version: 'v1.18.4')),
+        home: Scaffold(body: DuchampVersionSecret(version: 'v1.18.4')),
       ),
     );
     await tester.tap(find.text('v1.18.4'));
@@ -126,7 +126,7 @@ void main() {
       await tester.tap(find.text('v1.18.4'));
       await tester.pump(const Duration(milliseconds: 100));
     }
-    expect(find.byType(RodinSecretRoom), findsNothing);
+    expect(find.byType(DuchampSecretRoom), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
 }

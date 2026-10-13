@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rodin_essential_ui/slider_style.dart';
+import 'package:duchamp_essential_ui/slider_style.dart';
 
 void main() {
   const accent = Color(0xFF4CAADD);
-  final style = rodinSliderTheme(accent: accent, outline: Colors.grey);
+  final style = duchampSliderTheme(accent: accent, outline: Colors.grey);
 
   test('single and range sliders share the compact drop indicator', () {
     expect(style.valueIndicatorShape, isA<DropSliderValueIndicatorShape>());

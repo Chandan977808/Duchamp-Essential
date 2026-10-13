@@ -2,8 +2,8 @@ import 'dart:async';
 
 /// Observes only the native palette cache while one transaction is running.
 /// No IPC, hardware polling or system writes are performed by this timer.
-final class RodinSystemColorsMonitor {
-  RodinSystemColorsMonitor({required this.readStamp, required this.onChanged});
+final class DuchampSystemColorsMonitor {
+  DuchampSystemColorsMonitor({required this.readStamp, required this.onChanged});
 
   final (int state, int revision) Function() readStamp;
   final void Function() onChanged;

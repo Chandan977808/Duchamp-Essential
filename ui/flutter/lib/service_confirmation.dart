@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 /// Confirmation only: no device settings change until the user confirms.
-class RodinServiceConfirmation extends StatelessWidget {
-  const RodinServiceConfirmation({
+class DuchampServiceConfirmation extends StatelessWidget {
+  const DuchampServiceConfirmation({
     required this.reset,
     required this.surfaceBuilder,
     required this.cornerRadius,
@@ -100,7 +100,7 @@ class RodinServiceConfirmation extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  reset ? 'Reset Rodin settings?' : 'Pause Rodin Essential?',
+                  reset ? 'Reset Duchamp settings?' : 'Pause Duchamp Essential?',
                   style: const TextStyle(
                     fontSize: 20,
                     height: 1.2,
@@ -111,7 +111,7 @@ class RodinServiceConfirmation extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   reset
-                      ? 'Start fresh with no Rodin overrides.'
+                      ? 'Start fresh with no Duchamp overrides.'
                       : 'Let your ROM manage the device again.',
                   style: TextStyle(
                     fontSize: 13,
@@ -168,7 +168,7 @@ class RodinServiceConfirmation extends StatelessWidget {
                       Navigator.of(context).pop(true);
                     },
                     child: Text(
-                      reset ? 'Reset all settings' : 'Disable Rodin Essential',
+                      reset ? 'Reset all settings' : 'Disable Duchamp Essential',
                     ),
                   ),
                 ),

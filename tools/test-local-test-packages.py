@@ -28,47 +28,47 @@ def main():
     report = json.loads((directory / "VALIDATION.json").read_text())
     assert not report["newStrictFailureRules"]
     assert report["policyCompileExitCodes"]["stock-runtime-mode"] == 0
-    assert report["policyCompileExitCodes"]["rodin-runtime-mode"] == 0
-    published_rom = directory / "Rodin-Essential-ROM-Integration-v1.18.4.zip"
+    assert report["policyCompileExitCodes"]["duchamp-runtime-mode"] == 0
+    published_rom = directory / "Duchamp-Essential-ROM-Integration-v1.18.4.zip"
     suffix = "" if published_rom.exists() else "-local-test"
-    rom_path = published_rom if published_rom.exists() else directory / "Rodin-Essential-Stock-EEA-v1.18.4-local-test.zip"
+    rom_path = published_rom if published_rom.exists() else directory / "Duchamp-Essential-Stock-EEA-v1.18.4-local-test.zip"
     with zipfile.ZipFile(rom_path) as rom, \
-         zipfile.ZipFile(directory / f"Rodin-Essential-KernelSU-Next-Magisk-v1.18.4{suffix}.zip") as module:
+         zipfile.ZipFile(directory / f"Duchamp-Essential-KernelSU-Next-Magisk-v1.18.4{suffix}.zip") as module:
         assert rom.testzip() is None and module.testzip() is None
         root = "copy-to-extracted-rom/product/"
-        for relative in ("app/RodinEssential.apk", "bin/rodin_daemon", "bin/rodin_ctl"):
-            rom_name = root + ("app/RodinEssential/RodinEssential.apk" if relative.startswith("app/") else relative)
+        for relative in ("app/DuchampEssential.apk", "bin/duchamp_daemon", "bin/duchamp_ctl"):
+            rom_name = root + ("app/DuchampEssential/DuchampEssential.apk" if relative.startswith("app/") else relative)
             data = module.read(relative)
             assert data == rom.read(rom_name), "ROM/module payload differs"
             assert hashlib.sha256(data).hexdigest() == report["payload"][relative]
             if relative.startswith("bin/"):
                 aligned_elf(data)
-                if relative.endswith("rodin_daemon"):
+                if relative.endswith("duchamp_daemon"):
                     assert b"13.6" in data, "Protocol string missing from daemon"
-        with zipfile.ZipFile(io.BytesIO(module.read("app/RodinEssential.apk"))) as apk:
+        with zipfile.ZipFile(io.BytesIO(module.read("app/DuchampEssential.apk"))) as apk:
             assert not any(name.startswith("classes") and name.endswith(".dex") for name in apk.namelist())
             libraries = [name for name in apk.namelist() if name.startswith("lib/") and name.endswith(".so")]
             assert libraries
             for name in libraries:
                 aligned_elf(apk.read(name))
-            assert b"13.6" in apk.read("lib/arm64-v8a/librodin_essential_host.so")
+            assert b"13.6" in apk.read("lib/arm64-v8a/libduchamp_essential_host.so")
         fragments_only = 'PACKAGE.json' in rom.namelist()
         if fragments_only:
             assert not any(Path(name).name in ('plat_sepolicy.cil', 'vendor_sepolicy.cil', 'product_sepolicy.cil', 'precompiled_sepolicy') for name in rom.namelist())
             assert len([name for name in rom.namelist() if name.endswith('.cil')]) == 1
         mac = ET.fromstring(rom.read('policy/product_mac_permissions.additions.xml' if fragments_only else root + "etc/selinux/product_mac_permissions.xml"))
         mapping = [signer for signer in mac.findall("signer")
-                   if signer.find("package[@name='io.github.neeschal.rodinessential']") is not None]
+                   if signer.find("package[@name='com.saan.duchamp.essential']") is not None]
         assert len(mapping) == 1
         certificate = bytes.fromhex(mapping[0].attrib["signature"])
         assert hashlib.sha256(certificate).hexdigest() == report["apkSignerSha256"]
         seapp = rom.read('policy/product_seapp_contexts.additions' if fragments_only else root + "etc/selinux/product_seapp_contexts").decode()
-        assert "domain=rodin_app type=app_data_file levelFrom=all" in seapp
-        policy = rom.read('policy/rodin-essential.cil' if fragments_only else root + "etc/selinux/product_sepolicy.cil").decode()
-        assert "(allow rodin_app rodin_daemon (unix_stream_socket (connectto)))" in policy
-        assert "(allow untrusted_app_all rodin_daemon" not in policy
-        rc = rom.read(root + "etc/init/rodin_daemon.rc").decode()
-        assert "service rodin_daemon /product/bin/rodin_daemon" in rc
+        assert "domain=duchamp_app type=app_data_file levelFrom=all" in seapp
+        policy = rom.read('policy/duchamp-essential.cil' if fragments_only else root + "etc/selinux/product_sepolicy.cil").decode()
+        assert "(allow duchamp_app duchamp_daemon (unix_stream_socket (connectto)))" in policy
+        assert "(allow untrusted_app_all duchamp_daemon" not in policy
+        rc = rom.read(root + "etc/init/duchamp_daemon.rc").decode()
+        assert "service duchamp_daemon /product/bin/duchamp_daemon" in rc
         assert "on property:sys.boot_completed=1" in rc
         assert "/data/adb" not in rc and "seclabel u:r:su" not in rc
         if fragments_only:

@@ -1,7 +1,7 @@
-# Rodin Essential: unpacked-ROM integration
+# Duchamp Essential: unpacked-ROM integration
 
-For porters rebuilding ROM images for **Rodin devices**. Not a flashable ZIP.
-The package contains the app, daemon, init service and **only Rodin Essential
+For porters rebuilding ROM images for **Duchamp devices**. Not a flashable ZIP.
+The package contains the app, daemon, init service and **only Duchamp Essential
 policy additions**. No complete platform or vendor policy is supplied. Use your
 own ROM's policy, whether HyperOS, AOSP or an OEM port. Vendor labels and hardware
 interfaces must match that target.
@@ -32,7 +32,7 @@ the merged replacement has passed validation.
 
 ## 2. Generate the target-specific policy changes
 
-`policy/rodin-essential.cil` contains only Rodin additions. An extra CIL beside
+`policy/duchamp-essential.cil` contains only Duchamp additions. An extra CIL beside
 the canonical policy is not automatically loaded by init. The tool appends it
 to your `product_sepolicy.cil`, preserving unrelated rules and resolving vendor
 types in the complete split policy. Leave `vendor_sepolicy.cil` untouched unless
@@ -46,11 +46,11 @@ sudo apt-get install python3 secilc selinux-utils
 ```
 
 Use a compiler supporting the target Android policy syntax. Extract this ZIP
-into `rodin-integration`, alongside `rom`. From their parent directory run:
+into `duchamp-integration`, alongside `rom`. From their parent directory run:
 
 ```bash
-python3 rodin-integration/tools/merge-unpacked-rom-policy.py \
-  --rom rom --output rodin-merged \
+python3 duchamp-integration/tools/merge-unpacked-rom-policy.py \
+  --rom rom --output duchamp-merged \
   --touch-capability-exception
 ```
 
@@ -61,8 +61,8 @@ full target policy and validates file contexts before producing deployable
 files. It merges the APK certificate, exact app package mapping and daemon
 labels into the target's existing XML/context files.
 
-Proceed only if `rodin-merged/READY.txt` exists. Otherwise read
-`rodin-merged/validation/*.log` and do not copy incomplete output.
+Proceed only if `duchamp-merged/READY.txt` exists. Otherwise read
+`duchamp-merged/validation/*.log` and do not copy incomplete output.
 
 If vendor types differ, the tool lists missing labels. Confirm their actual
 counterparts in that ROM's policy and hardware labels, then supply a JSON
@@ -75,38 +75,38 @@ If the **original target policy** already fails strict neverallow checking,
 review its baseline log first. `--permit-baseline-neverallows` is an explicit
 porter exception requiring successful runtime compilation and no new
 neverallow conflicts. It is not a strict-policy or CTS pass and cannot ignore
-a conflict introduced by Rodin Essential.
+a conflict introduced by Duchamp Essential.
 
 ## 3. Copy payloads and generated changes
 
 Merge the **contents** of both directories into the extracted `rom` tree:
 
 ```text
-rodin-integration/copy-to-extracted-rom/
-rodin-merged/copy-to-extracted-rom/
+duchamp-integration/copy-to-extracted-rom/
+duchamp-merged/copy-to-extracted-rom/
 ```
 
 Keep unrelated files. The first directory contains only:
 
 ```text
-product/app/RodinEssential/RodinEssential.apk
-product/bin/rodin_daemon
-product/bin/rodin_ctl
-product/etc/init/rodin_daemon.rc
+product/app/DuchampEssential/DuchampEssential.apk
+product/bin/duchamp_daemon
+product/bin/duchamp_ctl
+product/etc/init/duchamp_daemon.rc
 ```
 
-The second contains your own target policy files with Rodin additions. Its
+The second contains your own target policy files with Duchamp additions. Its
 platform file appears only for the requested native-touch exception; its
 original policy comes from **your ROM**, not this ZIP.
 
 Do not install a second daemon in system/vendor or add root-module scripts.
-Init uses `/product/bin/rodin_daemon`; state lives in
-`/data/system/rodin-essential`. A manual `su` launch is not a permanent bake.
+Init uses `/product/bin/duchamp_daemon`; state lives in
+`/data/system/duchamp-essential`. A manual `su` launch is not a permanent bake.
 
 ## 4. Remove stale caches before rebuilding
 
 **After a successful merge**, remove only paths listed in
-`rodin-merged/REMOVE-AFTER-VALIDATION.txt` from the extracted tree. The list is
+`duchamp-merged/REMOVE-AFTER-VALIDATION.txt` from the extracted tree. The list is
 generated from your ROM's ODM/vendor directories. Typical ODM entries are:
 
 ```text
@@ -129,8 +129,8 @@ prefixes to its format. Preserve unrelated entries.
 
 | File | Owner | Mode | SELinux label |
 | --- | --- | --- | --- |
-| `/product/bin/rodin_daemon` | 0:0 | 0755 | `u:object_r:rodin_daemon_exec:s0` |
-| `/product/bin/rodin_ctl` | 0:0 | 0755 | `u:object_r:system_file:s0` |
+| `/product/bin/duchamp_daemon` | 0:0 | 0755 | `u:object_r:duchamp_daemon_exec:s0` |
+| `/product/bin/duchamp_ctl` | 0:0 | 0755 | `u:object_r:system_file:s0` |
 | APK and init file | 0:0 | 0644 | `u:object_r:system_file:s0` |
 | New directories | 0:0 | 0755 | appropriate existing directory label |
 
@@ -138,7 +138,7 @@ Use `metadata/fs_config.additions` for payload permissions and
 `metadata/file_contexts.additions` for payload/state labels. Retain the original
 owners, modes and labels of generated canonical policy/context/XML files
 (normally 0:0, 0644). Init creates state as 0:0, 0700 and restores its
-`rodin_daemon_data_file` label. Do not replace entire metadata with these additions.
+`duchamp_daemon_data_file` label. Do not replace entire metadata with these additions.
 
 ## 6. Rebuild and test
 
@@ -152,14 +152,14 @@ On an authorized development shell after boot:
 
 ```bash
 adb shell getenforce
-adb shell getprop init.svc.rodin_daemon
-adb shell ls -lZ /product/bin/rodin_daemon
+adb shell getprop init.svc.duchamp_daemon
+adb shell ls -lZ /product/bin/duchamp_daemon
 adb shell ps -AZ
-adb shell dumpsys package io.github.neeschal.rodinessential
-adb shell logcat -b all -d > rodin-integration-logcat.txt
+adb shell dumpsys package com.saan.duchamp.essential
+adb shell logcat -b all -d > duchamp-integration-logcat.txt
 ```
 
-Expect a running service, `rodin_daemon` process domain, `rodin_app` app domain
+Expect a running service, `duchamp_daemon` process domain, `duchamp_app` app domain
 and normal app connectivity under enforcing SELinux. Verify supported controls
 against hardware readback, then force-close, screen off/on and reboot to check
 restoration. Include OEM defaults, master pause/reset and charger reconnect.
@@ -198,7 +198,7 @@ Check the tile in Quick Settings; long-press must open Charging Control.
 
 ### Replacing an existing bake
 
-Keep APK, daemon and policies synchronized. Replace the old managed Rodin
+Keep APK, daemon and policies synchronized. Replace the old managed Duchamp
 policy/context/seapp/certificate entries once; do not append them twice. The
 merger rejects existing entries for review. Use one installation path and a
 consistent signing key. Differently signed ROM-native APKs require a ROM update,
@@ -206,13 +206,13 @@ not a forced module overwrite. App/service files survive data formatting;
 saved selections in `/data` do not.
 
 For a ROM integrated with the previous version of this merger, work on a backup
-of the extracted tree. Replace only the block between `BEGIN RODIN ESSENTIAL
-POLICY` and `END RODIN ESSENTIAL POLICY`, the Rodin daemon/state file-context
+of the extracted tree. Replace only the block between `BEGIN DUCHAMP ESSENTIAL
+POLICY` and `END DUCHAMP ESSENTIAL POLICY`, the Duchamp daemon/state file-context
 entries, this package's seapp entry and this package's MAC-permissions entry.
 Keep other packages under the same signer. Then rerun the new merger and follow
 steps 3–6. Do not remove the surrounding ROM policy or unrelated contexts.
 Older manually integrated policies without these markers require a reviewed
-removal of their Rodin additions; the tool deliberately refuses a blind merge.
+removal of their Duchamp additions; the tool deliberately refuses a blind merge.
 
 ## Loader reference
 

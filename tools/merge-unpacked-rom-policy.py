@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Merge Rodin-only inputs into a copy of the porter's own Android split policy.
+"""Merge Duchamp-only inputs into a copy of the porter's own Android split policy.
 
 No input image/tree is modified. No policy from another ROM is distributed.
 Unknown labels, incomplete inputs and new neverallow failures block output.
@@ -65,12 +65,12 @@ def exception(platform):
         remaining = [right for right in permissions[1] if right not in selected]
         if remaining:
             output.append(['neverallow', node[1], node[2], ['capability', remaining]])
-        name = f'rodin_touch_capability_restriction_{number}'
+        name = f'duchamp_touch_capability_restriction_{number}'
         number += 1
         original = node[1] if isinstance(node[1], list) else [node[1]]
         output.extend([
             ['typeattribute', name],
-            ['typeattributeset', name, ['and', original, ['not', ['rodin_daemon']]]],
+            ['typeattributeset', name, ['and', original, ['not', ['duchamp_daemon']]]],
             ['neverallow', name, node[2], ['capability', selected]],
         ])
     return '\n'.join(render(node) for node in output) + '\n', number
@@ -189,16 +189,16 @@ def main():
     if product_policy not in inputs or platform_policy not in inputs:
         parser.error('Compiler inputs must include canonical platform and product policies')
     baseline_text = '\n'.join(path.read_text() for path in inputs)
-    if re.search(r'\(type\s+rodin_(?:daemon|app)\)', baseline_text):
-        parser.error('Existing Rodin integration detected: remove its old managed policy block before replacement')
-    if args.kit.joinpath('policy/rodin-essential.cil').is_file():
-        fragment = (args.kit / 'policy/rodin-essential.cil').read_text()
+    if re.search(r'\(type\s+duchamp_(?:daemon|app)\)', baseline_text):
+        parser.error('Existing Duchamp integration detected: remove its old managed policy block before replacement')
+    if args.kit.joinpath('policy/duchamp-essential.cil').is_file():
+        fragment = (args.kit / 'policy/duchamp-essential.cil').read_text()
     else:
-        fragment = (args.kit / 'android/unpacked/rodin-native.cil').read_text()
+        fragment = (args.kit / 'android/unpacked/duchamp-native.cil').read_text()
     if args.labels:
         labels = json.loads(args.labels.read_text())
-        if not isinstance(labels, dict) or any(not re.fullmatch(r'[A-Za-z0-9_]+', key) or not re.fullmatch(r'[A-Za-z0-9_]+', value) or key.startswith('rodin_') for key, value in labels.items()):
-            parser.error('Labels must explicitly map vendor identifiers; Rodin-owned identifiers cannot be remapped')
+        if not isinstance(labels, dict) or any(not re.fullmatch(r'[A-Za-z0-9_]+', key) or not re.fullmatch(r'[A-Za-z0-9_]+', value) or key.startswith('duchamp_') for key, value in labels.items()):
+            parser.error('Labels must explicitly map vendor identifiers; Duchamp-owned identifiers cannot be remapped')
         fragment = '\n'.join(render(remap(node, labels)) for node in parse(fragment)) + '\n'
     # Diagnose missing labels before emitting any replacement files.
     declared = set(re.findall(r'\((?:type|typeattribute)\s+([A-Za-z0-9_]+)', baseline_text + '\n' + fragment))
@@ -227,7 +227,7 @@ def main():
         if path == platform_policy:
             content = platform
         if path == product_policy:
-            content += '\n; BEGIN RODIN ESSENTIAL POLICY\n' + fragment + '\n; END RODIN ESSENTIAL POLICY\n'
+            content += '\n; BEGIN DUCHAMP ESSENTIAL POLICY\n' + fragment + '\n; END DUCHAMP ESSENTIAL POLICY\n'
         write(target, content)
         edited_inputs.append(target)
     edited_code, edited_log = compile_set(edited_inputs, validation / 'edited-strict', True, args.policy_version)
@@ -244,27 +244,27 @@ def main():
     product = directories['product']
     contexts = product / 'product_file_contexts'
     addition_root = args.kit / 'policy'
-    file_additions = '/product/bin/rodin_daemon u:object_r:rodin_daemon_exec:s0\n/data/system/rodin-essential(/.*)? u:object_r:rodin_daemon_data_file:s0\n'
+    file_additions = '/product/bin/duchamp_daemon u:object_r:duchamp_daemon_exec:s0\n/data/system/duchamp-essential(/.*)? u:object_r:duchamp_daemon_data_file:s0\n'
     contexts_text = (contexts.read_text() if contexts.exists() else '')
-    if 'rodin_daemon_exec' in contexts_text or 'rodin_daemon_data_file' in contexts_text:
-        raise SystemExit('Existing Rodin file contexts need review; no deployable files emitted')
+    if 'duchamp_daemon_exec' in contexts_text or 'duchamp_daemon_data_file' in contexts_text:
+        raise SystemExit('Existing Duchamp file contexts need review; no deployable files emitted')
     merged_contexts = contexts_text + '\n' + file_additions
     seapp = product / 'product_seapp_contexts'
     seapp_text = seapp.read_text() if seapp.exists() else ''
-    if 'io.github.neeschal.rodinessential' in seapp_text:
+    if 'com.saan.duchamp.essential' in seapp_text:
         raise SystemExit('Existing seapp entry needs review; output is incomplete and must not be copied')
     mac = product / 'product_mac_permissions.xml'
     root = ET.fromstring(mac.read_text()) if mac.exists() else ET.Element('policy')
     for package in root.iter('package'):
-        if package.get('name') == 'io.github.neeschal.rodinessential':
+        if package.get('name') == 'com.saan.duchamp.essential':
             raise SystemExit('Existing MAC package entry needs review; output is incomplete and must not be copied')
     certificate_hex = (addition_root / 'certificate.der.hex').read_text().strip()
     bytes.fromhex(certificate_hex)
     signer = next((item for item in root.findall('signer') if item.get('signature', '').lower() == certificate_hex.lower()), None)
     if signer is None:
         signer = ET.SubElement(root, 'signer', {'signature': certificate_hex})
-    package = ET.SubElement(signer, 'package', {'name': 'io.github.neeschal.rodinessential'})
-    ET.SubElement(package, 'seinfo', {'value': 'rodin_essential'})
+    package = ET.SubElement(signer, 'package', {'name': 'com.saan.duchamp.essential'})
+    ET.SubElement(package, 'seinfo', {'value': 'duchamp_essential'})
     write(validation / 'product_file_contexts', merged_contexts)
     if not shutil.which('sefcontext_compile'):
         raise SystemExit('Install sefcontext_compile to validate target file contexts; no deployable files emitted')
@@ -279,7 +279,7 @@ def main():
             continue
         write(files / relative, (work / relative).read_text())
     write(files / contexts.relative_to(rom), merged_contexts)
-    write(files / seapp.relative_to(rom), seapp_text + '\nuser=_app seinfo=rodin_essential name=io.github.neeschal.rodinessential domain=rodin_app type=app_data_file levelFrom=all\n')
+    write(files / seapp.relative_to(rom), seapp_text + '\nuser=_app seinfo=duchamp_essential name=com.saan.duchamp.essential domain=duchamp_app type=app_data_file levelFrom=all\n')
     write(files / mac.relative_to(rom), ET.tostring(root, encoding='unicode') + '\n')
     caches = []
     for partition in ('odm', 'vendor'):
