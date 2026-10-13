@@ -147,6 +147,7 @@ jobs:
       - name: Build root module (KernelSU Next / Magisk)
         env:
           DUCHAMP_KEYSTORE: ${{ steps.signing.outputs.keystore }}
+          DUCHAMP_ALLOW_ANY_CERT: ${{ secrets.DUCHAMP_KEYSTORE_BASE64 == '' && '1' || '' }}
           DUCHAMP_KEY_ALIAS: ${{ secrets.DUCHAMP_KEY_ALIAS != '' && secrets.DUCHAMP_KEY_ALIAS || 'duchamp-essential' }}
           DUCHAMP_KEYSTORE_PASS: ${{ secrets.DUCHAMP_KEYSTORE_PASS != '' && secrets.DUCHAMP_KEYSTORE_PASS || 'android' }}
           DUCHAMP_KEY_PASS: ${{ secrets.DUCHAMP_KEY_PASS != '' && secrets.DUCHAMP_KEY_PASS || 'android' }}

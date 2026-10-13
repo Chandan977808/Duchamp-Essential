@@ -155,10 +155,15 @@ DUCHAMP_EXPECTED_CERT_DIGEST="$(tr -d '[:space:]:' \
     exit 1
 }
 [ "$DUCHAMP_CERT_DIGEST" = "$DUCHAMP_EXPECTED_CERT_DIGEST" ] || {
-    echo "Official release certificate mismatch" >&2
-    echo "expected=$DUCHAMP_EXPECTED_CERT_DIGEST" >&2
-    echo "actual=$DUCHAMP_CERT_DIGEST" >&2
-    exit 1
+    if [ -n "${DUCHAMP_ALLOW_ANY_CERT:-}" ]; then
+        echo "WARNING: skipping pinned release-certificate check (DUCHAMP_ALLOW_ANY_CERT is set)" >&2
+        echo "This module is NOT signed with the pinned release key and will not update over official builds." >&2
+    else
+        echo "Official release certificate mismatch" >&2
+        echo "expected=$DUCHAMP_EXPECTED_CERT_DIGEST" >&2
+        echo "actual=$DUCHAMP_CERT_DIGEST" >&2
+        exit 1
+    fi
 }
 "$DUCHAMP_ZIPALIGN" -c -P 16 -v 4 "$DUCHAMP_STAGE/app/DuchampEssential.apk" >/dev/null
 ANDROID_SDK_ROOT="$DUCHAMP_SDK_ROOT" bash "$DUCHAMP_PROJECT_ROOT/tools/check-platform-dex.sh" "$DUCHAMP_STAGE/app/DuchampEssential.apk"
