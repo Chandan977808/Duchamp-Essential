@@ -104,21 +104,24 @@ jobs:
       - name: Forensic check (temporary)
         working-directory: ${{ env.FLUTTER_SDK }}
         run: |
-          echo "which flutter: $(command -v flutter)"
-          echo "readlink flutter: $(readlink -f "$(command -v flutter)")"
-          echo "outer .git:"; ls -la .git | head -3
-          echo "src .git:"; ls -la engine/src/.git
-          echo "src gitfile content:"; cat engine/src/.git 2>/dev/null || echo "(is a dir)"
-          echo "outer HEAD: $(git rev-parse HEAD)"
-          echo "src HEAD: $(git -C engine/src rev-parse HEAD)"
-          echo "outer remotes:"; git remote -v
-          echo "src remotes:"; git -C engine/src remote -v
-          echo "engine.version link/file:"; ls -la bin/internal/engine.version
-          test -L bin/internal/engine.version && echo IS_SYMLINK || echo REGULAR_FILE
+          echo "PWD=$(pwd)" || true
+          echo "FLUTTER_SDK=${FLUTTER_SDK:-EMPTY}" || true
+          echo "which flutter: $(command -v flutter)" || true
+          echo "readlink flutter: $(readlink -f "$(command -v flutter)")" || true
+          echo "repo here: $(git remote -v 2>/dev/null | head -1)" || true
+          echo "HEAD here: $(git rev-parse HEAD 2>/dev/null)" || true
+          echo "outer .git:"; ls -la .git 2>/dev/null | head -5 || true
+          echo "src listing:"; ls -la engine/src 2>/dev/null | head -8 || echo NO_ENGINE_SRC_DIR
+          echo "src .git:"; ls -la engine/src/.git 2>/dev/null || echo NO_SRC_GIT
+          echo "src gitfile content:"; cat engine/src/.git 2>/dev/null || echo "(is a dir or missing)"
+          echo "outer remotes:"; git remote -v 2>/dev/null || true
+          echo "src remotes:"; git -C engine/src remote -v 2>/dev/null || echo NO_SRC_REPO
+          echo "engine.version link/file:"; ls -la bin/internal/engine.version 2>/dev/null || echo NO_ENGINE_VERSION
+          test -L bin/internal/engine.version && echo IS_SYMLINK || echo REGULAR_OR_MISSING
           readlink bin/internal/engine.version || true
-          ls -l --time-style=full-iso bin/internal/engine.version
-          echo "file content: $(tr -d '[:space:]' <bin/internal/engine.version)"
-          echo "PATH=$PATH"
+          ls -l --time-style=full-iso bin/internal/engine.version 2>/dev/null || true
+          echo "file content: $(tr -d '[:space:]' <bin/internal/engine.version 2>/dev/null)" || true
+          echo "PATH=$PATH" || true
 
       - name: Build pinned Flutter engine (revision-guarded)
         working-directory: ${{ env.FLUTTER_SDK }}
