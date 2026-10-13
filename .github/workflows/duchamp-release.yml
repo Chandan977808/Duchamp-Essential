@@ -37,6 +37,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: "3.47.7"
           cache: true
 
       - name: Set up Rust with the Android target
@@ -63,7 +64,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ steps.flutter.outputs.root }}/engine/src
-          key: engine-src-${{ steps.flutter.outputs.engine_rev }}
+          key: engine-src-v2-${{ steps.flutter.outputs.engine_rev }}
 
       - name: Sync Flutter engine sources
         if: steps.engine-cache.outputs.cache-hit != 'true'
@@ -81,6 +82,22 @@ jobs:
         if: steps.engine-cache.outputs.cache-hit == 'true'
         working-directory: ${{ steps.flutter.outputs.root }}
         run: gclient sync --no-history
+
+      - name: Pin engine checkout to the framework revision
+        working-directory: ${{ steps.flutter.outputs.root }}
+        run: |
+          ENGINE_SHA="$(tr -d '[:space:]' <bin/internal/engine.version)"
+          echo "framework engine: $ENGINE_SHA"
+          cd engine/src
+          for i in 1 2 3; do
+            git fetch origin "$ENGINE_SHA" && break
+            echo "fetch attempt $i failed, retrying..."
+            sleep 15
+          done
+          git checkout "$ENGINE_SHA"
+          cd ../..
+          gclient sync --no-history
+          echo "engine checkout: $(git -C engine/src rev-parse HEAD)"
 
       - name: Build pinned Flutter engine
         run: ./tools/build-flutter-engine.sh
