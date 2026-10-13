@@ -106,11 +106,15 @@ jobs:
         run: |
           export PATH="$FLUTTER_SDK/bin:$PATH"
           # Pin + build in one step; retry only on revision drift, exit at
-          # once on any real compile failure.
+          # once on any real compile failure. Hooks are disabled: the
+          # checkout's post-checkout hook otherwise advances the outer SDK
+          # checkout (and its engine.version) on every pin.
+          HOOKS_OFF="$RUNNER_TEMP/no-hooks"
+          mkdir -p "$HOOKS_OFF"
           for ATTEMPT in 1 2 3; do
             ENGINE_SHA="$(tr -d '[:space:]' <bin/internal/engine.version)"
             echo "attempt $ATTEMPT: framework=$ENGINE_SHA"
-            if ! (cd engine/src && git fetch origin "$ENGINE_SHA" && git checkout "$ENGINE_SHA"); then
+            if ! (cd engine/src && git fetch origin "$ENGINE_SHA" && git -c core.hooksPath="$HOOKS_OFF" checkout "$ENGINE_SHA"); then
               echo "pin failed (network?), retrying..."
               sleep 15
               continue

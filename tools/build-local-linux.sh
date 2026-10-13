@@ -98,10 +98,14 @@ done
 # seen changing on its own, so only revision drift is retried — a real compile
 # failure exits at once.
 export DUCHAMP_FLUTTER_ENGINE_SRC="$HOME/flutter/engine/src"
+HOOKS_OFF="$WORK/no-hooks"
+mkdir -p "$HOOKS_OFF"
 for ATTEMPT in 1 2 3; do
   ENGINE_SHA="$(tr -d '[:space:]' <"$HOME/flutter/bin/internal/engine.version")"
   echo "attempt $ATTEMPT: framework=$ENGINE_SHA"
-  if (cd "$DUCHAMP_FLUTTER_ENGINE_SRC" && git fetch origin "$ENGINE_SHA" && git checkout "$ENGINE_SHA"); then
+  # core.hooksPath: the checkout's post-checkout hook would otherwise advance
+  # the outer SDK checkout (and its engine.version) on every pin.
+  if (cd "$DUCHAMP_FLUTTER_ENGINE_SRC" && git fetch origin "$ENGINE_SHA" && git -c core.hooksPath="$HOOKS_OFF" checkout "$ENGINE_SHA"); then
     ENGINE_LOG="$WORK/engine-build-$ATTEMPT.log"
     set +e
     "$PROJECT/tools/build-flutter-engine.sh" 2>&1 | tee "$ENGINE_LOG"
