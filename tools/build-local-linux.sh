@@ -93,23 +93,39 @@ for i in 1 2 3; do
   echo "gclient sync attempt $i failed, retrying..."
   sleep 15
 done
-# Pin the engine checkout to the exact revision the framework was built with.
-# This runs AFTER every gclient sync and NOTHING may sync after it: gclient
-# also advances the outer SDK checkout, changing engine.version under us.
-ENGINE_SHA="$(tr -d '[:space:]' <"$HOME/flutter/bin/internal/engine.version")"
-echo "framework engine: $ENGINE_SHA"
-cd "$HOME/flutter/engine/src"
-for i in 1 2 3; do
-  if git fetch origin "$ENGINE_SHA"; then break; fi
-  echo "fetch attempt $i failed, retrying..."
-  sleep 15
-done
-git checkout "$ENGINE_SHA"
-ACTUAL="$(git rev-parse HEAD)"
-echo "engine checkout: $ACTUAL"
-[ "$ACTUAL" = "$ENGINE_SHA" ] || { echo "Engine pin failed" >&2; exit 1; }
+# Pin the engine checkout to the exact revision the framework was built with,
+# then build immediately in a retry loop: the SDK's engine.version has been
+# seen changing on its own, so only revision drift is retried — a real compile
+# failure exits at once.
 export DUCHAMP_FLUTTER_ENGINE_SRC="$HOME/flutter/engine/src"
-"$PROJECT/tools/build-flutter-engine.sh"
+for ATTEMPT in 1 2 3; do
+  ENGINE_SHA="$(tr -d '[:space:]' <"$HOME/flutter/bin/internal/engine.version")"
+  echo "attempt $ATTEMPT: framework=$ENGINE_SHA"
+  if (cd "$DUCHAMP_FLUTTER_ENGINE_SRC" && git fetch origin "$ENGINE_SHA" && git checkout "$ENGINE_SHA"); then
+    ENGINE_LOG="$WORK/engine-build-$ATTEMPT.log"
+    set +e
+    "$PROJECT/tools/build-flutter-engine.sh" 2>&1 | tee "$ENGINE_LOG"
+    CODE="${PIPESTATUS[0]}"
+    set -e
+    if [ "$CODE" -eq 0 ]; then
+      echo "ENGINE_BUILD_OK $ENGINE_SHA"
+      break
+    fi
+    if ! grep -q "revisions do not match" "$ENGINE_LOG"; then
+      echo "engine build failed for a real reason (log above)"
+      exit "$CODE"
+    fi
+    echo "framework revision drifted mid-flight, re-pinning..."
+    sleep 10
+  else
+    echo "pin failed (network?), retrying..."
+    sleep 15
+  fi
+  if [ "$ATTEMPT" = 3 ]; then
+    echo "engine pin never converged" >&2
+    exit 1
+  fi
+done
 
 echo "===== 8. Signing key (ONE key forever) ====="
 if [ -f "$OUT/duchamp-release.jks" ]; then

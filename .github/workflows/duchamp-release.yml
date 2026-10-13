@@ -83,30 +83,38 @@ jobs:
         working-directory: ${{ steps.flutter.outputs.root }}
         run: gclient sync --no-history
 
-      - name: Pin engine checkout to the framework revision
+      - name: Build pinned Flutter engine (revision-guarded)
         working-directory: ${{ steps.flutter.outputs.root }}
         run: |
-          # NOTE: this must run AFTER every gclient sync and NOTHING may sync
-          # after it: gclient also advances the outer SDK checkout, which
-          # changes bin/internal/engine.version under our feet.
-          ENGINE_SHA="$(tr -d '[:space:]' <bin/internal/engine.version)"
-          echo "framework engine: $ENGINE_SHA"
-          cd engine/src
-          for i in 1 2 3; do
-            git fetch origin "$ENGINE_SHA" && break
-            echo "fetch attempt $i failed, retrying..."
-            sleep 15
+          # Pin + build MUST happen in one step: the hosted SDK has been seen
+          # changing bin/internal/engine.version between steps. Retry only on
+          # revision drift; any real compile failure exits immediately.
+          for ATTEMPT in 1 2 3; do
+            ls -l --time-style=full-iso bin/internal/engine.version
+            ENGINE_SHA="$(tr -d '[:space:]' <bin/internal/engine.version)"
+            echo "attempt $ATTEMPT: framework=$ENGINE_SHA flutter=$(command -v flutter)"
+            if ! (cd engine/src && git fetch origin "$ENGINE_SHA" && git checkout "$ENGINE_SHA"); then
+              echo "pin failed (network?), retrying..."
+              sleep 15
+              continue
+            fi
+            set +e
+            "$GITHUB_WORKSPACE/tools/build-flutter-engine.sh" 2>&1 | tee "$RUNNER_TEMP/engine-build-$ATTEMPT.log"
+            CODE="${PIPESTATUS[0]}"
+            set -e
+            if [ "$CODE" -eq 0 ]; then
+              echo "ENGINE_BUILD_OK $ENGINE_SHA"
+              exit 0
+            fi
+            if ! grep -q "revisions do not match" "$RUNNER_TEMP/engine-build-$ATTEMPT.log"; then
+              echo "engine build failed for a real reason (log above)"
+              exit "$CODE"
+            fi
+            echo "framework revision drifted mid-flight, re-pinning..."
+            sleep 10
           done
-          git checkout "$ENGINE_SHA"
-          ACTUAL="$(git rev-parse HEAD)"
-          echo "engine checkout: $ACTUAL"
-          [ "$ACTUAL" = "$ENGINE_SHA" ] || {
-            echo "Engine pin failed: $ACTUAL != $ENGINE_SHA" >&2
-            exit 1
-          }
-
-      - name: Build pinned Flutter engine
-        run: ./tools/build-flutter-engine.sh
+          echo "engine pin never converged"
+          exit 1
 
       - name: Top up Android SDK (platform 36, build-tools, NDK r27+)
         run: |
