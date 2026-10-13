@@ -93,43 +93,13 @@ for i in 1 2 3; do
   echo "gclient sync attempt $i failed, retrying..."
   sleep 15
 done
-# Pin the engine checkout to the exact revision the framework was built with,
-# then build immediately in a retry loop: the SDK's engine.version has been
-# seen changing on its own, so only revision drift is retried — a real compile
-# failure exits at once.
+# engine/src is deliberately gitless (gclient populates it without metadata).
+# GIT_CEILING_DIRECTORIES stops upward git discovery so the engine build
+# script's revision check cleanly skips. Never git-checkout inside
+# engine/src: without its own .git that would move the whole SDK checkout.
 export DUCHAMP_FLUTTER_ENGINE_SRC="$HOME/flutter/engine/src"
-HOOKS_OFF="$WORK/no-hooks"
-mkdir -p "$HOOKS_OFF"
-for ATTEMPT in 1 2 3; do
-  ENGINE_SHA="$(tr -d '[:space:]' <"$HOME/flutter/bin/internal/engine.version")"
-  echo "attempt $ATTEMPT: framework=$ENGINE_SHA"
-  # core.hooksPath: the checkout's post-checkout hook would otherwise advance
-  # the outer SDK checkout (and its engine.version) on every pin.
-  if (cd "$DUCHAMP_FLUTTER_ENGINE_SRC" && git fetch origin "$ENGINE_SHA" && git -c core.hooksPath="$HOOKS_OFF" checkout "$ENGINE_SHA"); then
-    ENGINE_LOG="$WORK/engine-build-$ATTEMPT.log"
-    set +e
-    "$PROJECT/tools/build-flutter-engine.sh" 2>&1 | tee "$ENGINE_LOG"
-    CODE="${PIPESTATUS[0]}"
-    set -e
-    if [ "$CODE" -eq 0 ]; then
-      echo "ENGINE_BUILD_OK $ENGINE_SHA"
-      break
-    fi
-    if ! grep -q "revisions do not match" "$ENGINE_LOG"; then
-      echo "engine build failed for a real reason (log above)"
-      exit "$CODE"
-    fi
-    echo "framework revision drifted mid-flight, re-pinning..."
-    sleep 10
-  else
-    echo "pin failed (network?), retrying..."
-    sleep 15
-  fi
-  if [ "$ATTEMPT" = 3 ]; then
-    echo "engine pin never converged" >&2
-    exit 1
-  fi
-done
+export GIT_CEILING_DIRECTORIES="$DUCHAMP_FLUTTER_ENGINE_SRC"
+"$PROJECT/tools/build-flutter-engine.sh"
 
 echo "===== 8. Signing key (ONE key forever) ====="
 if [ -f "$OUT/duchamp-release.jks" ]; then

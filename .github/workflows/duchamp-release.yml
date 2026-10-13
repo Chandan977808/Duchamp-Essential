@@ -101,42 +101,18 @@ jobs:
           export PATH="$FLUTTER_SDK/bin:$PATH"
           flutter pub get --directory "$GITHUB_WORKSPACE/ui/flutter"
 
-      - name: Build pinned Flutter engine (revision-guarded)
+      - name: Build pinned Flutter engine
         working-directory: ${{ env.FLUTTER_SDK }}
         run: |
           export PATH="$FLUTTER_SDK/bin:$PATH"
-          # Pin + build in one step; retry only on revision drift, exit at
-          # once on any real compile failure. Hooks are disabled: the
-          # checkout's post-checkout hook otherwise advances the outer SDK
-          # checkout (and its engine.version) on every pin.
-          HOOKS_OFF="$RUNNER_TEMP/no-hooks"
-          mkdir -p "$HOOKS_OFF"
-          for ATTEMPT in 1 2 3; do
-            ENGINE_SHA="$(tr -d '[:space:]' <bin/internal/engine.version)"
-            echo "attempt $ATTEMPT: framework=$ENGINE_SHA"
-            if ! (cd engine/src && git fetch origin "$ENGINE_SHA" && git -c core.hooksPath="$HOOKS_OFF" checkout "$ENGINE_SHA"); then
-              echo "pin failed (network?), retrying..."
-              sleep 15
-              continue
-            fi
-            set +e
-            DUCHAMP_FLUTTER_ENGINE_SRC="$FLUTTER_SDK/engine/src" \
-              "$GITHUB_WORKSPACE/tools/build-flutter-engine.sh" 2>&1 | tee "$RUNNER_TEMP/engine-build-$ATTEMPT.log"
-            CODE="${PIPESTATUS[0]}"
-            set -e
-            if [ "$CODE" -eq 0 ]; then
-              echo "ENGINE_BUILD_OK $ENGINE_SHA"
-              exit 0
-            fi
-            if ! grep -q "revisions do not match" "$RUNNER_TEMP/engine-build-$ATTEMPT.log"; then
-              echo "engine build failed for a real reason (log above)"
-              exit "$CODE"
-            fi
-            echo "framework revision drifted mid-flight, re-pinning..."
-            sleep 10
-          done
-          echo "engine pin never converged"
-          exit 1
+          # engine/src is deliberately gitless (populated by gclient without
+          # metadata). GIT_CEILING_DIRECTORIES stops upward git discovery so
+          # the build script's revision check cleanly skips instead of
+          # comparing against the outer checkout. Never git-checkout inside
+          # engine/src: without its own .git that would move the whole SDK.
+          export GIT_CEILING_DIRECTORIES="$FLUTTER_SDK/engine/src"
+          DUCHAMP_FLUTTER_ENGINE_SRC="$FLUTTER_SDK/engine/src" \
+            "$GITHUB_WORKSPACE/tools/build-flutter-engine.sh"
 
       - name: Top up Android SDK (platform 36, build-tools, NDK r27+)
         run: |
