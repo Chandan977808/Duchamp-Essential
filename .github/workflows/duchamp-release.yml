@@ -15,6 +15,8 @@ jobs:
     env:
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
       DEPOT_TOOLS: ${{ github.workspace }}/depot_tools
+      FLUTTER_SDK: ${{ github.workspace }}/flutter-sdk
+      FLUTTER_VERSION: "3.47.7"
 
     steps:
       - name: Checkout (duchamp branch)
@@ -30,15 +32,36 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ninja-build pkg-config curl unzip zip \
-            python3 openjdk-17-jdk
+            python3 openjdk-17-jdk git
           java -version 2>&1 | head -1
 
-      - name: Set up Flutter (stable)
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          flutter-version: "3.47.7"
-          cache: true
+      - name: Clone pinned Flutter SDK (own copy on local disk)
+        run: |
+          rm -rf "$FLUTTER_SDK"
+          git clone --depth 1 --branch "$FLUTTER_VERSION" \
+            https://github.com/flutter/flutter.git "$FLUTTER_SDK"
+          echo "$FLUTTER_SDK/bin" >> "$GITHUB_PATH"
+          export PATH="$FLUTTER_SDK/bin:$PATH"
+          flutter --version
+
+      - name: Prefer our Flutter SDK on PATH
+        run: echo "${{ env.FLUTTER_SDK }}/bin" >> "$GITHUB_PATH"
+
+      - name: Stability probe (SDK must not drift)
+        run: |
+          export PATH="$FLUTTER_SDK/bin:$PATH"
+          A="$(tr -d '[:space:]' <"$FLUTTER_SDK/bin/internal/engine.version")"
+          flutter --version >/dev/null
+          B="$(tr -d '[:space:]' <"$FLUTTER_SDK/bin/internal/engine.version")"
+          flutter precache >/dev/null 2>&1 || true
+          C="$(tr -d '[:space:]' <"$FLUTTER_SDK/bin/internal/engine.version")"
+          echo "reads: $A $B $C"
+          [ "$A" = "$B" ] && [ "$B" = "$C" ] || {
+            echo "Flutter SDK drifts on its own; refusing to build." >&2
+            exit 1
+          }
+          echo "engine_rev=$C" >> "$GITHUB_OUTPUT"
+        id: flutter
 
       - name: Set up Rust with the Android target
         uses: dtolnay/rust-toolchain@stable
@@ -50,25 +73,16 @@ jobs:
           git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git "$DEPOT_TOOLS"
           echo "$DEPOT_TOOLS" >> "$GITHUB_PATH"
 
-      - name: Resolve Flutter root and engine revision
-        id: flutter
-        run: |
-          FLUTTER_BIN="$(readlink -f "$(command -v flutter)")"
-          FLUTTER_ROOT="$(cd "$(dirname "$FLUTTER_BIN")/.." && pwd)"
-          echo "root=$FLUTTER_ROOT" >> "$GITHUB_OUTPUT"
-          echo "engine_rev=$(tr -d '[:space:]' <"$FLUTTER_ROOT/bin/internal/engine.version")" >> "$GITHUB_OUTPUT"
-          flutter --version
-
       - name: Restore engine checkout cache
         id: engine-cache
         uses: actions/cache@v4
         with:
-          path: ${{ steps.flutter.outputs.root }}/engine/src
-          key: engine-src-v3-${{ steps.flutter.outputs.engine_rev }}
+          path: ${{ env.FLUTTER_SDK }}/engine/src
+          key: engine-src-v4-${{ steps.flutter.outputs.engine_rev }}
 
       - name: Sync Flutter engine sources
         if: steps.engine-cache.outputs.cache-hit != 'true'
-        working-directory: ${{ steps.flutter.outputs.root }}
+        working-directory: ${{ env.FLUTTER_SDK }}
         run: |
           cp engine/scripts/standard.gclient .gclient
           for i in 1 2 3; do
@@ -76,30 +90,34 @@ jobs:
             echo "gclient sync attempt $i failed, retrying..."
             sleep 15
           done
-          git -C engine/src rev-parse HEAD
 
       - name: Refresh engine sources on cache hit
         if: steps.engine-cache.outputs.cache-hit == 'true'
-        working-directory: ${{ steps.flutter.outputs.root }}
+        working-directory: ${{ env.FLUTTER_SDK }}
         run: gclient sync --no-history
 
-      - name: Build pinned Flutter engine (revision-guarded)
-        working-directory: ${{ steps.flutter.outputs.root }}
+      - name: Flutter dependencies
         run: |
-          # Pin + build MUST happen in one step: the hosted SDK has been seen
-          # changing bin/internal/engine.version between steps. Retry only on
-          # revision drift; any real compile failure exits immediately.
+          export PATH="$FLUTTER_SDK/bin:$PATH"
+          flutter pub get --directory "$GITHUB_WORKSPACE/ui/flutter"
+
+      - name: Build pinned Flutter engine (revision-guarded)
+        working-directory: ${{ env.FLUTTER_SDK }}
+        run: |
+          export PATH="$FLUTTER_SDK/bin:$PATH"
+          # Pin + build in one step; retry only on revision drift, exit at
+          # once on any real compile failure.
           for ATTEMPT in 1 2 3; do
-            ls -l --time-style=full-iso bin/internal/engine.version
             ENGINE_SHA="$(tr -d '[:space:]' <bin/internal/engine.version)"
-            echo "attempt $ATTEMPT: framework=$ENGINE_SHA flutter=$(command -v flutter)"
+            echo "attempt $ATTEMPT: framework=$ENGINE_SHA"
             if ! (cd engine/src && git fetch origin "$ENGINE_SHA" && git checkout "$ENGINE_SHA"); then
               echo "pin failed (network?), retrying..."
               sleep 15
               continue
             fi
             set +e
-            "$GITHUB_WORKSPACE/tools/build-flutter-engine.sh" 2>&1 | tee "$RUNNER_TEMP/engine-build-$ATTEMPT.log"
+            DUCHAMP_FLUTTER_ENGINE_SRC="$FLUTTER_SDK/engine/src" \
+              "$GITHUB_WORKSPACE/tools/build-flutter-engine.sh" 2>&1 | tee "$RUNNER_TEMP/engine-build-$ATTEMPT.log"
             CODE="${PIPESTATUS[0]}"
             set -e
             if [ "$CODE" -eq 0 ]; then
@@ -120,7 +138,7 @@ jobs:
         run: |
           SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
           yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
-          "$SDKMANAGER" "platforms;android-36"
+          "$SDKMANAGER" "platform-tools" "platforms;android-36"
           BUILD_TOOLS="$("$SDKMANAGER" --list 2>/dev/null | grep -o 'build-tools;[0-9.]*' | sort -V | tail -1)"
           echo "Installing $BUILD_TOOLS"
           "$SDKMANAGER" "$BUILD_TOOLS"
@@ -130,6 +148,7 @@ jobs:
 
       - name: Gate (repo contract tests)
         run: |
+          export PATH="$FLUTTER_SDK/bin:$PATH"
           rustup target add aarch64-linux-android
           cargo test -p duchamp-essential-daemon
           ./tools/test-root-module-contract.sh

@@ -27,7 +27,7 @@ sudo apt-get install -y openjdk-17-jdk ninja-build pkg-config curl unzip zip \
 
 echo "===== 2. Flutter (stable) ====="
 if [ ! -x "$HOME/flutter/bin/flutter" ]; then
-  git clone --depth 1 -b stable https://github.com/flutter/flutter.git "$HOME/flutter"
+  git clone --depth 1 -b 3.47.7 https://github.com/flutter/flutter.git "$HOME/flutter"
 fi
 export PATH="$HOME/flutter/bin:$PATH"
 flutter --version
