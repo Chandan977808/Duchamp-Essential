@@ -1867,8 +1867,35 @@ fn write_if_present(path: &str, value: &str) -> Result<bool, String> {
     Ok(true)
 }
 
-fn clear_gpu_cooling_cap() {
-    let _ = service_control::write("/sys/class/thermal/cooling_device3/cur_state", "0");
+fn find_gpu_cooling_state(root: &Path) -> Option<std::path::PathBuf> {
+    fs::read_dir(root).ok()?.flatten().find_map(|entry| {
+        if !entry.file_name().to_string_lossy().starts_with("cooling_device") {
+            return None;
+        }
+        let kind = fs::read_to_string(entry.path().join("type")).ok()?;
+        if kind.trim() != "devfreq-13000000.mali" {
+            return None;
+        }
+        Some(entry.path().join("cur_state"))
+    })
+}
+
+fn gpu_cooling_state_path() -> Option<std::path::PathBuf> {
+    static PATH: OnceLock<std::path::PathBuf> = OnceLock::new();
+    if let Some(path) = PATH.get() {
+        return Some(path.clone());
+    }
+    let path = find_gpu_cooling_state(Path::new("/sys/class/thermal"))?;
+    let _ = PATH.set(path.clone());
+    Some(path)
+}
+
+fn clear_gpu_cooling_cap() -> Result<(), String> {
+    let path = gpu_cooling_state_path()
+        .ok_or_else(|| "Duchamp Mali cooling device was not found".to_string())?;
+    service_control::write(&path, "0")
+        .map_err(|error| format!("GPU cooling state write failed: {error}"))?;
+    Ok(())
 }
 
 fn profile_uses_ged_boost(profile: i32) -> bool {
@@ -1876,6 +1903,7 @@ fn profile_uses_ged_boost(profile: i32) -> bool {
 }
 
 fn write_beast_gpu_constraints() {
+    let _ = clear_gpu_cooling_cap();
     let _ = service_control::write("/sys/class/misc/mali0/device/power_policy", "always_on");
     let _ = service_control::write("/sys/kernel/ged/hal/gpu_boost_level", "2");
     let _ = service_control::write("/sys/module/ged/parameters/ged_boost_enable", "1");
@@ -1943,8 +1971,12 @@ fn settle_beast_gpu_lock(attempts: usize, delay: Duration) -> bool {
 }
 
 pub fn enforce_performance_profile(profile: i32) -> bool {
-    if matches!(profile, 1 | 3) {
-        clear_gpu_cooling_cap();
+    if gpu_opp_frequency_table().is_err() {
+        return false;
+    }
+
+    if matches!(profile, 1 | 3) && clear_gpu_cooling_cap().is_err() {
+        return false;
     }
 
     match profile {
@@ -1972,7 +2004,7 @@ pub fn enforce_performance_profile(profile: i32) -> bool {
                 "/sys/class/misc/mali0/device/devfreq/13000000.mali/governor",
                 "simple_ondemand",
             );
-            let _ = service_control::write("/sys/kernel/ged/hal/custom_boost_gpu_freq", "40");
+            let _ = service_control::write("/sys/kernel/ged/hal/custom_boost_gpu_freq", gpu_get_lowest_opp_index().to_string());
             let _ = service_control::write("/sys/kernel/ged/hal/custom_upbound_gpu_freq", "0");
             let _ = service_control::write("/sys/module/ged/parameters/gpu_bottom_freq", "265000");
             let _ =
@@ -2006,8 +2038,10 @@ pub fn enforce_performance_profile(profile: i32) -> bool {
                 "/sys/class/misc/mali0/device/devfreq/13000000.mali/governor",
                 "powersave",
             );
-            let _ = service_control::write("/sys/kernel/ged/hal/custom_boost_gpu_freq", "40");
-            let _ = service_control::write("/sys/kernel/ged/hal/custom_upbound_gpu_freq", "27");
+            let _ = service_control::write("/sys/kernel/ged/hal/custom_boost_gpu_freq", gpu_get_lowest_opp_index().to_string());
+            if let Ok(index) = gpu_opp_index_for_frequency(601) {
+                let _ = service_control::write("/sys/kernel/ged/hal/custom_upbound_gpu_freq", index.to_string());
+            }
             let _ = service_control::write("/sys/module/ged/parameters/gpu_bottom_freq", "265000");
             let _ =
                 service_control::write("/sys/module/ged/parameters/gpu_cust_boost_freq", "265000");
@@ -2043,7 +2077,7 @@ pub fn enforce_performance_profile(profile: i32) -> bool {
                 "/sys/class/misc/mali0/device/devfreq/13000000.mali/governor",
                 "dummy",
             );
-            let _ = service_control::write("/sys/kernel/ged/hal/custom_boost_gpu_freq", "40");
+            let _ = service_control::write("/sys/kernel/ged/hal/custom_boost_gpu_freq", gpu_get_lowest_opp_index().to_string());
             let _ = service_control::write("/sys/kernel/ged/hal/custom_upbound_gpu_freq", "0");
             let _ = service_control::write("/sys/module/ged/parameters/gpu_bottom_freq", "265000");
             let _ =
@@ -4685,7 +4719,7 @@ fn gaming_dynamic_guard() {
         // Gaming and Beast own only the Mali cooling device. The vendor thermal
         // services remain running for CPU and platform management while this
         // guard prevents a GPU cooling cap from replacing their 1400 MHz target.
-        let _ = service_control::write("/sys/class/thermal/cooling_device3/cur_state", "0");
+        let _ = clear_gpu_cooling_cap();
 
         if profile == 3 {
             // MediaTek's power HAL can publish its stock OPP 40 target after
@@ -5243,9 +5277,7 @@ fn compact_zram() -> Result<(), String> {
 // MALI GPU & MEDIATEK GED HELPERS
 
 fn gpu_read_file(primary: &str, fallback: &str) -> Option<String> {
-    fs::read_to_string(primary)
-        .or_else(|_| fs::read_to_string(fallback))
-        .ok()
+    gpu_read_raw(primary).or_else(|| gpu_read_raw(fallback))
 }
 
 fn gpu_write_file(primary: &str, fallback: &str, value: &str) -> Result<(), String> {
@@ -5274,12 +5306,43 @@ fn gpu_write_file(primary: &str, fallback: &str, value: &str) -> Result<(), Stri
 fn gpu_read_raw(path: &str) -> Option<String> {
     use std::io::Read;
     let mut f = fs::File::open(path).ok()?;
-    let mut buf = [0u8; 256];
+    let mut buf = [0u8; 16384];
     let n = f.read(&mut buf).ok()?;
-    if n == 0 {
+    if n == 0 || n == buf.len() {
         return None;
     }
     String::from_utf8(buf[..n].to_vec()).ok()
+}
+
+fn parse_gpu_opp_frequency_table(raw: &str) -> Result<Vec<i32>, String> {
+    let table = raw.split_whitespace().map(|item| {
+        let hz = item.parse::<u64>().map_err(|_| "invalid GPU frequency table")?;
+        if hz == 0 || hz % 1_000_000 != 0 || hz / 1_000_000 > i32::MAX as u64 {
+            return Err("invalid GPU frequency units");
+        }
+        Ok((hz / 1_000_000) as i32)
+    }).collect::<Result<Vec<_>, _>>().map_err(str::to_string)?;
+    if table.is_empty() || !table.windows(2).all(|pair| pair[0] > pair[1]) {
+        return Err("GPU OPP table must be strictly descending".into());
+    }
+    Ok(table)
+}
+
+fn gpu_opp_frequency_table() -> Result<Vec<i32>, String> {
+    static TABLE: OnceLock<Vec<i32>> = OnceLock::new();
+    if let Some(table) = TABLE.get() { return Ok(table.clone()); }
+    let raw = gpu_read_file("/sys/class/devfreq/13000000.mali/available_frequencies",
+        "/sys/class/misc/mali0/device/devfreq/13000000.mali/available_frequencies")
+        .ok_or("GPU frequency table unavailable")?;
+    let table = parse_gpu_opp_frequency_table(&raw)?;
+    let _ = TABLE.set(table.clone());
+    Ok(table)
+}
+
+fn gpu_opp_index_for_frequency(mhz: i32) -> Result<i32, String> {
+    gpu_opp_frequency_table()?.iter().position(|value| *value == mhz)
+        .map(|index| index as i32)
+        .ok_or_else(|| format!("GPU frequency {mhz} MHz is not in the supported OPP table"))
 }
 
 fn gpu_get_loading() -> i32 {
@@ -5302,10 +5365,13 @@ fn gpu_get_cur_opp_index() -> i32 {
                 .next()
                 .and_then(|part| part.parse::<i32>().ok())
         })
-        .unwrap_or(40)
+        .unwrap_or_else(gpu_get_lowest_opp_index)
 }
 
 fn gpu_get_lowest_opp_index() -> i32 {
+    if let Ok(table) = gpu_opp_frequency_table() {
+        return table.len().saturating_sub(1) as i32;
+    }
     gpu_read_raw("/sys/kernel/ged/hal/total_gpu_freq_level_count")
         .and_then(|value| {
             value
@@ -5355,7 +5421,7 @@ fn parse_ged_current_frequency_mhz(raw: &str) -> Option<i32> {
         None
     } else if value > 10_000_000 {
         Some((value / 1_000_000) as i32)
-    } else if value > 1_300 {
+    } else if value >= 100_000 {
         Some((value / 1_000) as i32)
     } else {
         Some(value as i32)
@@ -5443,9 +5509,9 @@ fn gpu_boost_pipeline_matches(enabled: bool) -> bool {
 }
 
 fn gpu_get_thermal_state() -> i32 {
-    fs::read_to_string("/sys/class/thermal/cooling_device3/cur_state")
-        .ok()
-        .and_then(|s| s.trim().parse().ok())
+    gpu_cooling_state_path()
+        .and_then(|path| fs::read_to_string(path).ok())
+        .and_then(|raw| raw.trim().parse().ok())
         .unwrap_or(-1)
 }
 
@@ -5561,7 +5627,7 @@ fn set_gpu_min_freq(mhz: i32) -> Result<(), String> {
     }
     let hz = (mhz as u64) * 1_000_000;
     let khz = (mhz as u64) * 1_000;
-    let opp_boost = ((1400 - mhz) / 28).clamp(0, 40);
+    let opp_boost = gpu_opp_index_for_frequency(mhz)?;
     let _ = service_control::write(
         "/sys/kernel/ged/hal/custom_boost_gpu_freq",
         opp_boost.to_string(),
@@ -5600,7 +5666,7 @@ fn set_gpu_max_freq(mhz: i32) -> Result<(), String> {
     }
     let hz = (mhz as u64) * 1_000_000;
     let khz = (mhz as u64) * 1_000;
-    let opp_upbound = ((1400 - mhz) / 28).clamp(0, 40);
+    let opp_upbound = gpu_opp_index_for_frequency(mhz)?;
     let _ = service_control::write(
         "/sys/kernel/ged/hal/custom_upbound_gpu_freq",
         opp_upbound.to_string(),
@@ -5665,12 +5731,11 @@ fn set_gpu_uncap(enable: bool) -> Result<(), String> {
     let mut beast_locked = true;
 
     if enable {
-        clear_gpu_cooling_cap();
         beast_locked = settle_beast_gpu_lock(60, Duration::from_millis(25));
     } else {
         service_control::write("/sys/class/misc/mali0/device/power_policy", "coarse_demand")
             .map_err(|error| format!("GPU power policy write failed: {error}"))?;
-        let _ = service_control::write("/sys/kernel/ged/hal/custom_boost_gpu_freq", "40");
+        let _ = service_control::write("/sys/kernel/ged/hal/custom_boost_gpu_freq", gpu_get_lowest_opp_index().to_string());
         let _ = service_control::write("/sys/kernel/ged/hal/custom_upbound_gpu_freq", "0");
         let _ = service_control::write("/sys/kernel/ged/hal/gpu_boost_level", "0");
         gpu_write_file(
