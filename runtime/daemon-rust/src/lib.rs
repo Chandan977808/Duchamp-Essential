@@ -2163,7 +2163,7 @@ pub fn apply_performance_profile(profile: i32) -> Result<(), String> {
 
 fn classify_touch_panel_version(version: &str) -> i32 {
     let version = version.to_ascii_lowercase();
-    if version.contains("goodix") || version.contains("gdix") || version.contains("gt9916") {
+    if version.contains("goodix") || version.contains("gdix") || version.contains("9916") {
         1
     } else if version.contains("focal") || version.contains("fts") || version.contains("ft3683") {
         2
@@ -2172,8 +2172,44 @@ fn classify_touch_panel_version(version: &str) -> i32 {
     }
 }
 
+fn touch_firmware_is_non_thp(version: &str) -> bool {
+    version.to_ascii_lowercase().contains("non thp")
+        || version.to_ascii_lowercase().contains("non-thp")
+}
+
+fn read_touch_firmware_from(reader: &mut impl Read) -> Result<String, String> {
+    // Some vendor proc handlers consume the entry on the first read. Request
+    // the full report up front instead of read_to_string's small initial probe.
+    let mut buffer = [0u8; 16384];
+    let count = reader.read(&mut buffer).map_err(|e| format!("touch firmware read: {e}"))?;
+    if count == buffer.len() {
+        return Err("touch firmware report may be truncated".into());
+    }
+    Ok(String::from_utf8_lossy(&buffer[..count]).trim_matches('\0').to_string())
+}
+
+fn read_touch_firmware() -> Result<String, String> {
+    let mut file = fs::File::open("/proc/tp_fw_version")
+        .map_err(|e| format!("touch firmware open: {e}"))?;
+    read_touch_firmware_from(&mut file)
+}
+
+fn touch_uses_non_thp_goodix() -> bool {
+    touch_panel_code() == 1
+        && touch_firmware_is_non_thp(&read_touch_firmware().unwrap_or_default())
+}
+
+fn non_thp_goodix_profile_rate(profile: i32) -> Result<u16, String> {
+    match profile {
+        1 => Ok(240),
+        2 => Ok(480),
+        3 => Ok(480), // Native source remains 480; output may be resampled.
+        _ => Err("invalid non-THP touch profile".into()),
+    }
+}
+
 fn touch_panel_code() -> i32 {
-    let version = fs::read_to_string("/proc/tp_fw_version").unwrap_or_default();
+    let version = read_touch_firmware().unwrap_or_default();
     let detected = classify_touch_panel_version(&version);
     if detected != 0 {
         detected
@@ -2383,7 +2419,9 @@ fn touch_profile_is_live(profile: i32) -> bool {
         return false;
     };
     let panel = touch_panel_code();
-    let native_matches = if vendor_binder::touch_available() {
+    let native_matches = if touch_uses_non_thp_goodix() {
+        goodix_report_rate_hz() == Some(expected_rate)
+    } else if vendor_binder::touch_available() {
         let thp_matches = locate_touch_thp_layout()
             .and_then(|layout| read_touch_thp_rate(layout, layout.current_rate_addr))
             .map(|rate| rate == expected_rate)
@@ -2555,6 +2593,11 @@ fn set_touch_profile(profile: i32) -> Result<(), String> {
 }
 
 fn apply_touch_profile_locked(profile: i32) -> Result<(), String> {
+    // Non-THP firmware has no THP timing block. Use its readable driver latch
+    // even when the Xiaomi HAL exists; never open another process's memory.
+    if touch_uses_non_thp_goodix() {
+        return apply_non_thp_goodix_profile(profile);
+    }
     service_control::remember("touch.hal", serde_json::json!(true))?;
 
     TOUCH_APPLY_ACK.store(0, Ordering::Release);
@@ -2628,6 +2671,46 @@ fn apply_touch_profile_locked(profile: i32) -> Result<(), String> {
     Ok(())
 }
 
+fn apply_non_thp_goodix_profile(profile: i32) -> Result<(), String> {
+    let rate = non_thp_goodix_profile_rate(profile)?;
+    const NODE: &str = "/sys/devices/platform/goodix_ts.0/switch_report_rate";
+    let previous = goodix_report_rate_hz()
+        .ok_or("cannot read non-THP Goodix report rate; refusing an unverified write")?;
+    TOUCH_APPLY_ACK.store(0, Ordering::Release);
+    touch_resampler::set_target_hz(0)?;
+    let result = apply_touch_driver_fallback(if profile == 3 { 2 } else { profile }, 1)
+        .and_then(|()| {
+            if profile == 3 { touch_resampler::set_non_thp_target_hz(1000) } else { Ok(()) }
+        })
+        .and_then(|()| mutate_persisted_state(|state| state.touch = profile));
+    if let Err(error) = result {
+        let stop = touch_resampler::set_target_hz(0);
+        let value = if previous == 240 { "0" } else { "1" };
+        let rollback = fs::write(NODE, value)
+            .map_err(|e| format!("Goodix rollback write: {e}"))
+            .and_then(|()| {
+                if goodix_report_rate_hz() == Some(previous) {
+                    Ok(())
+                } else {
+                    Err("Goodix rollback readback mismatch".into())
+                }
+            });
+        TOUCH_APPLY_ACK.store(-1, Ordering::Release);
+        let error = match stop { Ok(()) => error, Err(stop_error) => format!("{error}; {stop_error}") };
+        return Err(match rollback {
+            Ok(()) => error,
+            Err(rollback_error) => format!("{error}; {rollback_error}"),
+        });
+    }
+    TOUCH_STATE.store(profile, Ordering::Release);
+    TOUCH_SUSTAINED_RATE.store(if profile == 3 { 1000 } else { i32::from(rate) }, Ordering::Release);
+    TOUCH_INSTANT_RATE.store(0, Ordering::Release);
+    TOUCH_PANEL.store(1, Ordering::Release);
+    TOUCH_CONTROL_PATH.store(if profile == 3 { 3 } else { 2 }, Ordering::Release);
+    TOUCH_APPLY_ACK.store(1, Ordering::Release);
+    Ok(())
+}
+
 fn release_touch_control() -> Result<(), String> {
     let _guard = touch_profile_apply_lock()
         .lock()
@@ -2635,11 +2718,17 @@ fn release_touch_control() -> Result<(), String> {
     touch_resampler::set_target_hz(0)?;
     let originals = service_control::originals();
     let mut released = Vec::new();
-    if service_control::original("touch.hal").is_some() && vendor_binder::touch_available() {
+    if service_control::original("touch.hal").is_some()
+        && !touch_uses_non_thp_goodix()
+        && vendor_binder::touch_available()
+    {
         // Release game/super-report requests once, not on every wake or boot.
         apply_touch_hal_profile(0)?;
     }
-    if let Some(rate) = service_control::original("touch.thp_rate").and_then(|v| v.as_u64()) {
+    if let Some(rate) = service_control::original("touch.thp_rate")
+        .and_then(|v| v.as_u64())
+        .filter(|_| !touch_uses_non_thp_goodix())
+    {
         let layout = locate_touch_thp_layout()?;
         let mut memory = OpenOptions::new()
             .read(true)
@@ -6128,10 +6217,13 @@ fn restore_released_controls() -> Result<(), String> {
     }
     run("touch output", touch_resampler::set_target_hz(0));
     if service_control::original("touch.hal").is_some() {
-        if vendor_binder::touch_available() {
+        if !touch_uses_non_thp_goodix() && vendor_binder::touch_available() {
             run("OEM touch", apply_touch_hal_profile(0));
         }
-        if let Some(rate) = service_control::original("touch.thp_rate").and_then(|v| v.as_u64()) {
+        if let Some(rate) = service_control::original("touch.thp_rate")
+            .and_then(|v| v.as_u64())
+            .filter(|_| !touch_uses_non_thp_goodix())
+        {
             // Restore the saved timing, including OEM values outside fixed-rate presets.
             run(
                 "touch timing",

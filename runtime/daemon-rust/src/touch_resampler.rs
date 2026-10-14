@@ -3,6 +3,7 @@ use std::sync::atomic::{AtomicI32, AtomicU64, Ordering};
 use std::time::Duration;
 
 static TARGET_HZ: AtomicI32 = AtomicI32::new(0);
+static NON_THP_GOODIX_INPUT: AtomicI32 = AtomicI32::new(0);
 static READY_HZ: AtomicI32 = AtomicI32::new(0);
 static LAST_ERROR: AtomicI32 = AtomicI32::new(0);
 static MEASURED_HZ_X10: AtomicI32 = AtomicI32::new(0);
@@ -20,10 +21,21 @@ pub fn start_background() {
 }
 
 pub fn set_target_hz(target: i32) -> Result<(), String> {
+    set_target_with_backend(target, false)
+}
+
+pub fn set_non_thp_target_hz(target: i32) -> Result<(), String> {
+    set_target_with_backend(target, true)
+}
+
+fn set_target_with_backend(target: i32, non_thp: bool) -> Result<(), String> {
     if target != 0 && target != 1000 {
         return Err(format!("unsupported Duchamp resampling target {target}"));
     }
 
+    if target != 0 {
+        NON_THP_GOODIX_INPUT.store(i32::from(non_thp), Ordering::Release);
+    }
     TARGET_HZ.store(target, Ordering::Release);
     if target == 0 {
         for _ in 0..50 {
@@ -32,7 +44,7 @@ pub fn set_target_hz(target: i32) -> Result<(), String> {
             }
             std::thread::sleep(Duration::from_millis(5));
         }
-        return Ok(());
+        return Err("touch resampler did not stop within 250 ms".into());
     }
 
     for _ in 0..200 {
@@ -42,6 +54,7 @@ pub fn set_target_hz(target: i32) -> Result<(), String> {
         std::thread::sleep(Duration::from_millis(5));
     }
 
+    TARGET_HZ.store(0, Ordering::Release);
     Err(format!(
         "Duchamp touch resampler did not attach (code {})",
         LAST_ERROR.load(Ordering::Acquire)
@@ -98,15 +111,20 @@ fn worker() {
         READY_HZ.store(0, Ordering::Release);
         if let Err(code) = result {
             LAST_ERROR.store(code, Ordering::Release);
+            if NON_THP_GOODIX_INPUT.load(Ordering::Acquire) == 1 {
+                // Fail closed; do not repeatedly reattach after an input error.
+                TARGET_HZ.store(0, Ordering::Release);
+            }
         }
         std::thread::sleep(Duration::from_millis(100));
     }
 }
 
-#[cfg(target_os = "android")]
+#[cfg(any(target_os = "android", test))]
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
 mod android {
     use super::{
-        ATTACHMENT_PATH, INJECTED_FRAMES, LAST_ERROR, PHYSICAL_FRAMES, READY_HZ, TARGET_HZ,
+        ATTACHMENT_PATH, INJECTED_FRAMES, LAST_ERROR, NON_THP_GOODIX_INPUT, PHYSICAL_FRAMES, READY_HZ, TARGET_HZ,
     };
     use std::fs::{self, File, OpenOptions};
     use std::io::{Read, Write};
@@ -161,6 +179,13 @@ mod android {
     }
 
     #[repr(C)]
+    struct PollFd {
+        fd: c_int,
+        events: i16,
+        revents: i16,
+    }
+
+    #[repr(C)]
     #[derive(Clone, Copy, Default)]
     struct InputAbsInfo {
         value: i32,
@@ -211,6 +236,7 @@ mod android {
         ) -> c_int;
         fn ioctl(fd: c_int, request: c_long, ...) -> c_int;
         fn setpriority(which: c_int, who: u32, priority: c_int) -> c_int;
+        fn poll(fds: *mut PollFd, count: usize, timeout_ms: c_int) -> c_int;
     }
 
     fn monotonic_ns() -> i64 {
@@ -338,7 +364,7 @@ mod android {
         Err(-4)
     }
 
-    fn direct_output_handle() -> Result<(File, PathBuf), i32> {
+    fn direct_output_handle(require_goodix: bool) -> Result<(File, PathBuf), i32> {
         let mut paths = fs::read_dir("/dev/input")
             .map_err(|_| -10)?
             .flatten()
@@ -352,6 +378,14 @@ mod android {
         paths.sort();
 
         for path in paths {
+            if require_goodix {
+                let Some(event) = path.file_name().and_then(|name| name.to_str()) else { continue; };
+                let name = fs::read_to_string(format!("/sys/class/input/{event}/device/name"))
+                    .unwrap_or_default().to_ascii_lowercase();
+                if !(name.contains("goodix") || name.contains("gt9916") || name.contains("gdix")) {
+                    continue;
+                }
+            }
             let Ok(file) = OpenOptions::new()
                 .read(true)
                 .write(true)
@@ -368,13 +402,16 @@ mod android {
     }
 
     fn output_handle() -> Result<(File, PathBuf, i32, Option<u32>), i32> {
+        if NON_THP_GOODIX_INPUT.load(Ordering::Acquire) == 1 {
+            return direct_output_handle(true).map(|(file, path)| (file, path, 2, None));
+        }
         // A ROM-native daemon has direct, narrowly labelled input-device
         // access. Prefer that path when requested so product SELinux policy
         // never needs cross-domain process tracing or /proc fd inspection.
         // Root modules leave this unset and retain the v1.18.0 service-fd
         // path with the existing direct-device compatibility fallback.
         if std::env::var("DUCHAMP_TOUCH_DIRECT_INPUT").as_deref() == Ok("1") {
-            return direct_output_handle().map(|(file, path)| (file, path, 2, None));
+            return direct_output_handle(false).map(|(file, path)| (file, path, 2, None));
         }
 
         if let Some(pid) = touch_service_pid()
@@ -383,7 +420,7 @@ mod android {
             return Ok((file, path, 1, Some(pid)));
         }
 
-        direct_output_handle().map(|(file, path)| (file, path, 2, None))
+        direct_output_handle(false).map(|(file, path)| (file, path, 2, None))
     }
 
     fn axis_range(fd: RawFd, code: u16) -> (i32, i32) {
@@ -434,9 +471,9 @@ mod android {
         y_range: (i32, i32),
         marker_code: u16,
         marker_range: (i32, i32),
-    ) -> bool {
+    ) -> Result<bool, i32> {
         let Some(first_active_slot) = slots.iter().position(|slot| slot.active) else {
-            return false;
+            return Ok(false);
         };
         let mut events = Vec::with_capacity(40);
         let mut push = |event_type, code, value| {
@@ -487,13 +524,62 @@ mod android {
         push(EV_ABS, marker_code, original_marker);
         push(EV_SYN, SYN_REPORT, 0);
 
-        changed && output.write_all(events_as_bytes(&events)).is_ok()
+        if !changed { return Ok(false); }
+        output.write_all(events_as_bytes(&events)).map_err(|_| -14)?;
+        Ok(true)
     }
 
     fn parse_events(bytes: &[u8]) -> impl Iterator<Item = InputEvent> + '_ {
         bytes
             .chunks_exact(size_of::<InputEvent>())
             .map(|chunk| unsafe { std::ptr::read_unaligned(chunk.as_ptr().cast::<InputEvent>()) })
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn distinguishes_own_marker_from_a_normal_source_frame() {
+            let event = |kind, code, value| InputEvent {
+                event_type: kind, code, value, ..InputEvent::default()
+            };
+            assert!(frame_is_injected(&[
+                event(EV_ABS, ABS_MT_WIDTH_MINOR, 11),
+                event(EV_ABS, ABS_MT_WIDTH_MINOR, 10),
+                event(EV_SYN, SYN_REPORT, 0),
+            ], ABS_MT_WIDTH_MINOR));
+            assert!(!frame_is_injected(&[
+                event(EV_ABS, ABS_MT_POSITION_X, 10),
+                event(EV_ABS, ABS_MT_WIDTH_MINOR, 10),
+                event(EV_SYN, SYN_REPORT, 0),
+            ], ABS_MT_WIDTH_MINOR));
+        }
+
+        #[test]
+        fn inactive_slots_emit_nothing() {
+            let path = std::env::temp_dir().join(format!("duchamp-resampler-{}-{}", std::process::id(), monotonic_ns()));
+            let mut output = File::create(&path).unwrap();
+            assert!(!emit_interpolated(&mut output, &[SlotState::default(); 10], 100,
+                (0, 1000), (0, 1000), ABS_MT_WIDTH_MINOR, (0, 255)).unwrap());
+            assert_eq!(output.metadata().unwrap().len(), 0);
+            drop(output);
+            fs::remove_file(path).unwrap();
+        }
+
+        #[test]
+        fn write_failure_is_not_reported_as_a_successful_frame() {
+            let path = std::env::temp_dir().join(format!("duchamp-resampler-{}-{}", std::process::id(), monotonic_ns()));
+            File::create(&path).unwrap();
+            let mut output = File::open(&path).unwrap();
+            let mut slots = [SlotState::default(); 10];
+            slots[0] = SlotState { active: true, x: 10, previous_x: 0,
+                point_time_ns: 100, previous_time_ns: 50, ..SlotState::default() };
+            assert_eq!(emit_interpolated(&mut output, &slots, 125, (0, 1000),
+                (0, 1000), ABS_MT_WIDTH_MINOR, (0, 255)), Err(-14));
+            drop(output);
+            fs::remove_file(path).unwrap();
+        }
     }
 
     pub(super) fn run(initial_target: i32) -> Result<(), i32> {
@@ -508,6 +594,11 @@ mod android {
         let y_range = axis_range(input.as_raw_fd(), ABS_MT_POSITION_Y);
         let marker_code = marker_axis(input.as_raw_fd()).ok_or(-13)?;
         let marker_range = axis_range(input.as_raw_fd(), marker_code);
+        // Verify that the writer accepts an empty synchronization frame before
+        // claiming attachment. No pointer coordinates or tracking IDs change.
+        output.write_all(events_as_bytes(&[InputEvent {
+            event_type: EV_SYN, code: SYN_REPORT, value: 0, ..InputEvent::default()
+        }])).map_err(|_| -14)?;
         unsafe {
             setpriority(PRIO_PROCESS, 0, -10);
         }
@@ -544,6 +635,9 @@ mod android {
                 };
 
                 for event in parse_events(&read_buffer[..bytes]) {
+                    // Dropped input state cannot safely be extrapolated. Close
+                    // this session instead of guessing active pointer slots.
+                    if event.event_type == EV_SYN && event.code == 3 { return Err(-16); }
                     frame.push(event);
                     if event.event_type != EV_SYN || event.code != SYN_REPORT {
                         continue;
@@ -618,6 +712,11 @@ mod android {
             if session && now.saturating_sub(last_source_frame) > 40_000_000 {
                 session = false;
             }
+            if session && now.saturating_sub(next_tick) > 2_000_000 {
+                // Skip missed deadlines instead of emitting a catch-up burst.
+                ideal_count = ((now - session_start) as u64 * target as u64 / 1_000_000_000) + 2;
+                next_tick = session_start + ((ideal_count - 1) * 1_000_000_000u64 / target as u64) as i64;
+            }
             while session && now >= next_tick {
                 if actual_count < ideal_count
                     && emit_interpolated(
@@ -628,7 +727,7 @@ mod android {
                         y_range,
                         marker_code,
                         marker_range,
-                    )
+                    )?
                 {
                     actual_count += 1;
                     INJECTED_FRAMES.fetch_add(1, Ordering::AcqRel);
@@ -639,6 +738,11 @@ mod android {
             }
 
             if now >= service_check {
+                if NON_THP_GOODIX_INPUT.load(Ordering::Acquire) == 1
+                    && crate::goodix_report_rate_hz() != Some(480)
+                {
+                    return Err(-15);
+                }
                 if let Some(pid) = service_pid
                     && touch_service_pid() != Some(pid)
                 {
@@ -654,12 +758,14 @@ mod android {
             // 1 ms deadlines are not lost to scheduler wake latency. Idle mode
             // remains inexpensive and the stale-session cutoff guarantees an
             // interrupted gesture cannot leave this fast path running.
-            let wake = if session {
-                next_tick.min(now + 250_000)
+            if session {
+                sleep_until_ns(next_tick.min(now + 250_000));
             } else {
-                now + 2_000_000
-            };
-            sleep_until_ns(wake);
+                // Wake immediately for physical input, not 500 times/second
+                // while idle. The bounded wait also permits prompt disable.
+                let mut descriptor = PollFd { fd: input.as_raw_fd(), events: 1, revents: 0 };
+                unsafe { poll(&mut descriptor, 1, 50); }
+            }
         }
     }
 }
