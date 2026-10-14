@@ -608,7 +608,9 @@ fn write_verified(path: &Path, value: &str) -> Result<String, String> {
     read_trimmed(path)
 }
 
-const DUCHAMP_MAX_FCC_UA: i64 = 22_000_000;
+// MiCode bsp-duchamp-u-oss: global pd_cp_manager_gl max_fcc = 12000 mA.
+// FCC tiers are requests; negotiated adapter watts and battery taper differ.
+const DUCHAMP_MAX_FCC_UA: i64 = 12_000_000;
 const BYPASS_CHARGING_PATHS: [&str; 2] = [
     "/sys/class/power_supply/battery/bypass_charging",
     "/sys/class/power_supply/battery/bypass_charge",
@@ -806,14 +808,14 @@ fn configure_bypass(enabled: Option<bool>, threshold: Option<i32>) -> Result<(),
 }
 
 fn valid_charging_profile(profile: i32) -> bool {
-    matches!(profile, 0 | 25 | 33 | 65 | 85 | 90)
+    matches!(profile, 0 | 25 | 33 | 45 | 55 | 67)
 }
 
 fn normalize_charging_profile(profile: i32) -> i32 {
     match profile {
         // v1.18.x stored the old boost switch as 8. Preserve that intent as
         // the full Duchamp charging tier after upgrading.
-        8 => 90,
+        8 | 65 | 85 | 90 => 67,
         value if valid_charging_profile(value) => value,
         _ => 0,
     }
@@ -821,11 +823,9 @@ fn normalize_charging_profile(profile: i32) -> i32 {
 
 fn charging_profile_fcc_ua(profile: i32) -> Option<i64> {
     match profile {
-        25 => Some(6_111_000),
-        33 => Some(8_067_000),
-        65 => Some(15_889_000),
-        85 => Some(20_778_000),
-        90 => Some(DUCHAMP_MAX_FCC_UA),
+        25 | 33 | 45 | 55 | 67 => {
+            Some(((DUCHAMP_MAX_FCC_UA / 1_000 * i64::from(profile) + 33) / 67) * 1_000)
+        }
         _ => None,
     }
 }
@@ -872,7 +872,7 @@ fn apply_charging_profile(profile: i32) -> Result<(), String> {
     let actual = write_verified(&fcc_path, &target.to_string())?
         .parse::<i64>()
         .map_err(|_| "charging FCC readback is invalid".to_string())?;
-    if actual > target {
+    if actual <= 0 || actual > target {
         return Err(format!(
             "charging FCC verify failed: requested <= {target}, live {actual}"
         ));
@@ -6659,7 +6659,7 @@ fn handle_enabled_command(line: &str) -> String {
     let result: Result<(), String> = if let Some(arg) = cmd.strip_prefix("SET charging ") {
         let value = match arg.trim() {
             "standard" | "adaptive" => 0,
-            "boost" => 90,
+            "boost" => 67,
             raw => match raw.parse::<i32>() {
                 Ok(value) => value,
                 Err(_) => return "ERR invalid charging profile".into(),

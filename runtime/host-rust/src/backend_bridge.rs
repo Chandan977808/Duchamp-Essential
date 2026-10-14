@@ -918,7 +918,7 @@ fn io_name(code: i32) -> Option<&'static str> {
 fn perform(command: Command) -> Result<(), String> {
     match command {
         Command::Refresh => Ok(()),
-        Command::Charging(v) if matches!(v, 0 | 25 | 33 | 65 | 85 | 90) => {
+        Command::Charging(v) if matches!(v, 0 | 25 | 33 | 45 | 55 | 67) => {
             request(&format!("SET charging {v}")).map(|_| ())
         }
         Command::BypassCharging(v) if matches!(v, 0 | 1) => {
@@ -1550,7 +1550,7 @@ pub extern "C" fn duchamp_backend_get_charging_mode() -> i32 {
 }
 #[unsafe(no_mangle)]
 pub extern "C" fn duchamp_backend_set_charging_mode(v: i32) -> i32 {
-    if !matches!(v, 0 | 25 | 33 | 65 | 85 | 90) {
+    if !matches!(v, 0 | 25 | 33 | 45 | 55 | 67) {
         return 0;
     }
     send_charging(Command::Charging(v))
