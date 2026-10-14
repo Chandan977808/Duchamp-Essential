@@ -24,10 +24,10 @@ installed application UID.
 - ABI: ARM64
 - Android: API 31 or newer
 - Kernel userspace: 16 KB page-compatible native binaries
-- Vendor dependencies: Duchamp touch and display AIDL services plus MediaTek GED
+- Vendor dependencies: Goodix non-THP/THP touch, supported Xiaomi display services and MediaTek GED
 
 This is device-specific software. Other devices are rejected by the root-module
-installer and are not supported by the included AOSP policy.
+installer and are not supported by this module.
 
 ## Main features
 
@@ -42,7 +42,12 @@ installer and are not supported by the included AOSP policy.
   native 480 Hz source.
 - Xiaomi touch/display AIDL integration, color modes, expert calibration,
   sunlight mode, HDR/video controls, resolution, and density controls.
-- ZRAM size, algorithm, swappiness, compaction, charging, and power telemetry.
+- ZRAM size, algorithm, swappiness, compaction, and power telemetry.
+- Charging target tiers of 25/33/45/55/67 W using the global Duchamp FCC ceiling.
+  Actual power follows charger negotiation, temperature and battery taper.
+  Existing 65/85/90 W selections migrate to the 67 W tier.
+- Goodix non-THP touch control through the driver report-rate latch, without
+  requiring a THP HAL memory mapping.
 - Kernel-supported bypass charging with Immediate or 20/40/80/90% thresholds,
   daemon-owned persistence and measured battery-flow reporting.
 - Whole-app hardware-control pause and reset, plus OEM Control defaults for
@@ -64,33 +69,25 @@ installer and are not supported by the included AOSP policy.
 
 ## Screenshots
 
-The redesigned interface groups live device telemetry and hardware tuning into
-focused panels for each subsystem.
+Screenshots from Duchamp Essential running on the device.
 
-<table align="center" border="0" cellpadding="8" cellspacing="0">
+<table>
   <tr>
-    <td align="center" style="border: 0;"><a href="docs/screenshots/home-redesigned.png"><img src="docs/screenshots/home-redesigned.png" alt="Home dashboard" width="150"></a><br><sub><b>Home</b> - Device Pulse and quick controls</sub></td>
-    <td align="center" style="border: 0;"><a href="docs/screenshots/control-hubs-redesigned.png"><img src="docs/screenshots/control-hubs-redesigned.png" alt="Control hubs" width="150"></a><br><sub><b>Control Hubs</b> - Hardware subsystem navigation</sub></td>
-    <td align="center" style="border: 0;"><a href="docs/screenshots/cpu.png"><img src="docs/screenshots/cpu.png" alt="CPU controls" width="150"></a><br><sub><b>CPU</b> - Core and frequency control</sub></td>
-    <td align="center" style="border: 0;"><a href="docs/screenshots/gpu.png"><img src="docs/screenshots/gpu.png" alt="GPU controls" width="150"></a><br><sub><b>GPU</b> - Mali profiles and GED</sub></td>
+    <td align="center"><a href="docs/screenshots/home.png"><img src="docs/screenshots/home.png" alt="Duchamp Home" width="170"></a><br>Home</td>
+    <td align="center"><a href="docs/screenshots/control-hubs.png"><img src="docs/screenshots/control-hubs.png" alt="Duchamp Control Hubs" width="170"></a><br>Control Hubs</td>
+    <td align="center"><a href="docs/screenshots/cpu.png"><img src="docs/screenshots/cpu.png" alt="Duchamp CPU" width="170"></a><br>CPU</td>
+    <td align="center"><a href="docs/screenshots/gpu.png"><img src="docs/screenshots/gpu.png" alt="Duchamp GPU" width="170"></a><br>GPU</td>
   </tr>
   <tr>
-    <td align="center" style="border: 0;"><a href="docs/screenshots/touch.png"><img src="docs/screenshots/touch.png" alt="Touch controls" width="150"></a><br><sub><b>Touch</b> - Response profiles</sub></td>
-    <td align="center" style="border: 0;"><a href="docs/screenshots/display.png"><img src="docs/screenshots/display.png" alt="Display controls" width="150"></a><br><sub><b>Display</b> - Color and HDR tuning</sub></td>
-    <td align="center" style="border: 0;"><a href="docs/screenshots/battery.png"><img src="docs/screenshots/battery.png" alt="Battery controls" width="150"></a><br><sub><b>Battery</b> - Charging telemetry</sub></td>
-    <td align="center" style="border: 0;"><a href="docs/screenshots/zram.png"><img src="docs/screenshots/zram.png" alt="ZRAM controls" width="150"></a><br><sub><b>ZRAM</b> - Memory compression</sub></td>
+    <td align="center"><a href="docs/screenshots/touch.png"><img src="docs/screenshots/touch.png" alt="Duchamp Touch" width="170"></a><br>Touch</td>
+    <td align="center"><a href="docs/screenshots/display.png"><img src="docs/screenshots/display.png" alt="Duchamp Display" width="170"></a><br>Display</td>
+    <td align="center"><a href="docs/screenshots/charging.png"><img src="docs/screenshots/charging.png" alt="Duchamp Charging" width="170"></a><br>Charging</td>
+    <td align="center"><a href="docs/screenshots/zram.png"><img src="docs/screenshots/zram.png" alt="Duchamp zRAM" width="170"></a><br>zRAM</td>
   </tr>
   <tr>
-    <td align="center" style="border: 0;"><a href="docs/screenshots/diagnostics.png"><img src="docs/screenshots/diagnostics.png" alt="Diagnostics" width="150"></a><br><sub><b>Diagnostics</b> - Runtime health checks</sub></td>
-    <td align="center" style="border: 0;"><a href="docs/screenshots/support.png"><img src="docs/screenshots/support.png" alt="Support and project information" width="150"></a><br><sub><b>Support</b> - Community and safety information</sub></td>
-    <td align="center" style="border: 0;"><a href="docs/screenshots/system-colors.png"><img src="docs/screenshots/system-colors.png" alt="System Colors" width="150"></a><br><sub><b>System Colors</b> - Material You palette control</sub></td>
-    <td align="center" style="border: 0;"><a href="docs/screenshots/advanced-configuration.png"><img src="docs/screenshots/advanced-configuration.png" alt="Advanced Configuration" width="150"></a><br><sub><b>Advanced Configuration</b> - CPU governors and device tuning</sub></td>
-  </tr>
-  <tr>
-    <td align="center" style="border: 0;"><a href="docs/screenshots/resolution.png"><img src="docs/screenshots/resolution.png" alt="Resolution controls" width="150"></a><br><sub><b>Resolution</b> - Canvas, density, and refresh settings</sub></td>
-    <td align="center" style="border: 0;"><a href="docs/screenshots/additional-screen-1.png"><img src="docs/screenshots/additional-screen-1.png" alt="Additional screen 1" width="150"></a><br><sub><b>Additional Screen 1</b> - Device configuration</sub></td>
-    <td align="center" style="border: 0;"><a href="docs/screenshots/additional-screen-2.png"><img src="docs/screenshots/additional-screen-2.png" alt="Additional screen 2" width="150"></a><br><sub><b>Additional Screen 2</b> - Device configuration</sub></td>
-    <td align="center" style="border: 0;"><a href="docs/screenshots/system-colors-updated.png"><img src="docs/screenshots/system-colors-updated.png" alt="Updated System Colors" width="150"></a><br><sub><b>System Colors</b> - Updated palette controls</sub></td>
+    <td align="center"><a href="docs/screenshots/support.png"><img src="docs/screenshots/support.png" alt="Duchamp Support" width="170"></a><br>Support</td>
+    <td align="center"><a href="docs/screenshots/system-colors.png"><img src="docs/screenshots/system-colors.png" alt="Duchamp System Colors" width="170"></a><br>System Colors</td>
+    <td align="center"><a href="docs/screenshots/advanced-configuration.png"><img src="docs/screenshots/advanced-configuration.png" alt="Duchamp Advanced Configuration" width="170"></a><br>Advanced Configuration</td>
   </tr>
 </table>
 
@@ -116,21 +113,12 @@ exact lock with a lower ceiling. It keeps the thermal services alive, remembers
 the configuration that was active beforehand, and restores it when the final
 custom CPU range is reset.
 
-## Integration choices
+## Installation
 
-| Method | APK privilege | Backend | Persistence |
-| --- | --- | --- | --- |
-| AOSP ROM integration | Normal app UID | Root init daemon | `/data/system/duchamp-essential/state.conf` |
-| KernelSU Next or Magisk | Normal app UID | Root module daemon | `/data/adb/duchamp-essential/state.conf` |
-| Standalone APK | Normal app UID | None | Hardware controls unavailable |
-
-For a ROM release, use the AOSP integration. It installs the APK and daemon in
-`/product`, creates a dedicated app SELinux domain, restricts the control socket
-to that domain, starts the daemon after boot, and restores saved state without a
-root manager.
-
-See [AOSP ROM integration](docs/ROM_INTEGRATION.md) for the complete maintainer
-workflow and [Architecture](docs/ARCHITECTURE.md) for runtime details.
+Install the module ZIP through KernelSU Next Manager or Magisk while Android is
+running, reboot, and enable Duchamp Essential. The bundled APK is an ordinary
+user app; the privileged backend runs in the module daemon. A standalone APK
+does not provide hardware control. Recovery installation is not supported.
 
 ## Build from source
 
@@ -172,40 +160,6 @@ DUCHAMP_KEY_PASS='key-password' \
 DUCHAMP_BUILD_ONLY=1 ./build-and-install.sh
 ```
 
-## Export for an AOSP tree
-
-```bash
-DUCHAMP_KEYSTORE=/absolute/path/rom-app.jks \
-DUCHAMP_KEY_ALIAS=duchamp-essential \
-DUCHAMP_KEYSTORE_PASS='store-password' \
-DUCHAMP_KEY_PASS='key-password' \
-  ./tools/export-aosp-bundle.sh
-```
-
-The generated `dist/aosp/DuchampEssential-<timestamp>/` directory contains the
-APK, daemon, control client, `Android.bp`, init service, split product/vendor
-SELinux policy, the APK public certificate used by the dedicated app-domain
-mapping, and checksums. Keep the same private key for every ROM update; the
-private key is never copied into the bundle.
-
-To build, stage, and wire the integration into an existing ROM source tree in
-one command, provide the Duchamp product makefile and BoardConfig path:
-
-```bash
-DUCHAMP_KEYSTORE=/absolute/path/rom-app.jks \
-DUCHAMP_KEY_ALIAS=duchamp-essential \
-DUCHAMP_KEYSTORE_PASS='store-password' \
-DUCHAMP_KEY_PASS='key-password' \
-  ./tools/integrate-aosp-rom.sh /absolute/path/to/aosp \
-    device/xiaomi/duchamp/device.mk \
-    device/xiaomi/duchamp/BoardConfig.mk
-```
-
-The helper creates `vendor/duchamp-essential`, verifies the complete build, and
-adds the two exact include lines only when absent. It refuses paths outside the
-selected source tree and never replaces an existing integration directory.
-Passing only the AOSP root keeps the previous stage-only behavior.
-
 ## KernelSU Next and Magisk module
 
 For an existing rooted ROM, build the combined application and daemon module:
@@ -240,29 +194,19 @@ Android reports a certificate mismatch. Hardware profiles stored under
 `/data/adb/duchamp-essential` remain intact, while application-local preferences
 reset once. Later releases signed by the retained key update normally.
 
-The same ZIP can also act as a temporary update layer over a ROM-native Duchamp
-Essential installation when that ROM APK uses the same signing certificate as
-the release APK. The installer updates the app without clearing its data, the
-module daemon reuses `/data/system/duchamp-essential`, and native init is stopped
-before the module daemon starts. Removing the module rolls the app back to the
-ROM copy and restarts the native service. A differently signed ROM build is
-rejected without uninstalling the app or deleting its data; that build must be
-updated through its maintainer's OTA or original signing key.
-
 ## Repository layout
 
 ```text
 android/
-  aosp/                 AOSP prebuilt, init, and SELinux integration template
   kernelsu-next/        KernelSU Next and Magisk module source
   package/              Manifest and Android resources
   platform/             Minimal Android tile and Back callback adapters
-docs/                   Architecture, build, and ROM maintainer documentation
+docs/                   Architecture and build documentation
 runtime/
   daemon-rust/          Privileged hardware backend and control client
   flutter-engine/       Embedder header and ignored pinned engine prebuilts
   host-rust/            NativeActivity, Flutter embedder, JNI, and IPC bridge
-tools/                  Engine, AOSP export, and module build scripts
+tools/                  Engine and module build scripts
 ui/flutter/             Flutter AOT interface
 ```
 
@@ -270,9 +214,6 @@ ui/flutter/             Flutter AOT interface
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [Building and verification](docs/BUILDING.md)
-- [AOSP ROM integration](docs/ROM_INTEGRATION.md)
-- [Unpacked EROFS/ext4 ROM integration](docs/UNPACKED_ROM_PORTER_GUIDE.md): Duchamp-only
-  additions and a merge tool using the porter's own ROM policy.
 - [Flutter runtime pin](docs/FLUTTER_RUNTIME.md)
 - [Commit convention](docs/COMMITS.md)
 
