@@ -6620,6 +6620,39 @@ fn handle_enabled_command(line: &str) -> String {
     if cmd == "PING" {
         return format!("OK PONG {PROTOCOL_VERSION}");
     }
+    if cmd == "GET charging.diagnostics" {
+        let profile = persisted_state().lock().ok().map(|state| state.charging).unwrap_or(-1);
+        let path = charging_fcc_path();
+        let fcc = path.as_ref().and_then(|path| read_i64(path));
+        return format!("OK profile={profile};rated_watts=67;fcc_path={path:?};fcc_ua={fcc:?};target_fcc_ua={:?};ceiling_fcc_ua={DUCHAMP_MAX_FCC_UA};sic_mode_present={};usb_online={};master_online={:?};primary_fcc_ma={:?};master_fcc_ua={:?}",
+            charging_profile_fcc_ua(profile), charging_path().exists(), usb("online"),
+            gpu_read_raw("/sys/class/power_supply/mtk-master-charger/online"),
+            gpu_read_raw("/sys/class/power_supply/primary_chg/constant_charge_current"),
+            gpu_read_raw("/sys/class/power_supply/mtk-master-charger/constant_charge_current_max"));
+    }
+    if cmd == "GET gpu.diagnostics" {
+        let state = persisted_state().lock().ok().map(|state| state.perf).unwrap_or(-1);
+        return format!("OK profile={state};current={};opp={};min={};max={};governor={};dvfs={};GED={};policy={};table={:?};boost_raw={:?};ceiling_raw={:?};master_raw={:?};boost_enable_raw={:?};smart_boost_raw={:?};cooling_path={:?};cooling_state={}",
+            gpu_get_cur_freq_mhz(), gpu_get_cur_opp_index(), gpu_get_min_freq_mhz(), gpu_get_max_freq_mhz(),
+            gpu_get_governor(), gpu_get_dvfs_enabled(), gpu_get_ged_boost(), gpu_get_power_policy(),
+            gpu_opp_frequency_table(), gpu_read_raw("/sys/kernel/ged/hal/custom_boost_gpu_freq"),
+            gpu_read_raw("/sys/kernel/ged/hal/custom_upbound_gpu_freq"),
+            gpu_read_raw("/sys/module/ged/parameters/ged_boost_enable"),
+            gpu_read_raw("/sys/module/ged/parameters/boost_gpu_enable"),
+            gpu_read_raw("/sys/module/ged/parameters/ged_smart_boost"),
+            gpu_cooling_state_path(), gpu_get_thermal_state());
+    }
+    if cmd == "GET touch.diagnostics" {
+        return match read_touch_firmware() {
+            Ok(version) => format!("OK firmware={:?};non_thp={};panel={};driver_rate={:?};resampler_ready={};resampler_error={};attachment={};physical_frames={};injected_frames={}",
+                version, touch_firmware_is_non_thp(&version),
+                classify_touch_panel_version(&version), goodix_report_rate_hz(),
+                touch_resampler::ready_hz(), touch_resampler::last_error(),
+                touch_resampler::attachment_path(), touch_resampler::physical_frames(),
+                touch_resampler::injected_frames()),
+            Err(error) => format!("ERR {error}"),
+        };
+    }
     if cmd == "GET snapshot" {
         return format!("OK {}", snapshot());
     }
@@ -7060,6 +7093,84 @@ mod tests {
     }
 
     #[test]
+    fn discovers_duchamp_cooling_by_type_without_touching_other_devices() {
+        let root = std::env::temp_dir().join(format!(
+            "duchamp-cooling-discovery-{}", std::process::id()
+        ));
+        std::fs::create_dir(&root).unwrap();
+        for (name, kind) in [
+            ("cooling_device3", "charger-cooler"),
+            ("cooling_device9", "devfreq-14000000.mali"),
+        ] {
+            let dir = root.join(name);
+            std::fs::create_dir(&dir).unwrap();
+            std::fs::write(dir.join("type"), kind).unwrap();
+            std::fs::write(dir.join("cur_state"), "42").unwrap();
+        }
+        assert!(super::find_gpu_cooling_state(&root).is_none());
+        let gpu = root.join("cooling_device2");
+        std::fs::create_dir(&gpu).unwrap();
+        std::fs::write(gpu.join("type"), "devfreq-13000000.mali\n").unwrap();
+        std::fs::write(gpu.join("cur_state"), "42").unwrap();
+        assert_eq!(super::find_gpu_cooling_state(&root), Some(gpu.join("cur_state")));
+        for name in ["cooling_device3", "cooling_device9", "cooling_device2"] {
+            assert_eq!(std::fs::read_to_string(root.join(name).join("cur_state")).unwrap(), "42");
+        }
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn parses_duchamp_gpu_table_without_rodin_index_assumptions() {
+        let raw = "1400000000 1383000000 1367000000 1351000000 1335000000 1319000000 1303000000 1287000000 1271000000 1255000000 1238000000 1222000000 1206000000 1190000000 1174000000 1158000000 1142000000 1126000000 1110000000 1093000000 1077000000 1061000000 1045000000 1029000000 1013000000 997000000 981000000 965000000 948000000 932000000 916000000 900000000 884000000 868000000 852000000 836000000 820000000 800000000 780000000 760000000 740000000 720000000 701000000 681000000 661000000 641000000 621000000 601000000 582000000 562000000 542000000 522000000 502000000 483000000 463000000 443000000 423000000 403000000 383000000 364000000 344000000 324000000 304000000 284000000 265000000";
+        let table = super::parse_gpu_opp_frequency_table(raw).unwrap();
+        assert_eq!(table.len(), 65);
+        assert_eq!(table[0], 1400);
+        assert_eq!(table[47], 601);
+        assert_eq!(table[64], 265);
+        assert!(super::parse_gpu_opp_frequency_table("265000000 1400000000").is_err());
+        assert!(super::parse_gpu_opp_frequency_table("1400000000 1400000000").is_err());
+        assert!(super::parse_gpu_opp_frequency_table("garbage").is_err());
+    }
+
+    #[test]
+    fn non_thp_goodix_firmware_avoids_thp_backend() {
+        let version = "patch_pid:9916R\npatch_vid:058002e6\nconfig_version:32\nxiaomi-touch version for non thp";
+        assert_eq!(classify_touch_panel_version(version), 1);
+        assert!(super::touch_firmware_is_non_thp(version));
+        assert!(super::touch_firmware_is_non_thp("NON-THP"));
+        assert!(!super::touch_firmware_is_non_thp(
+            "xiaomi-touch version for thp"
+        ));
+        assert!(!super::touch_firmware_is_non_thp(""));
+    }
+
+    #[test]
+    fn reads_one_shot_vendor_proc_report_with_a_large_first_buffer() {
+        struct OneShot { consumed: bool }
+        impl std::io::Read for OneShot {
+            fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+                if self.consumed { return Ok(0); }
+                self.consumed = true;
+                let report = b"patch_pid:9916R\npatch_vid:058002e6\nconfig_version:32\nxiaomi-touch version for non thp";
+                let count = buf.len().min(report.len());
+                buf[..count].copy_from_slice(&report[..count]);
+                Ok(count)
+            }
+        }
+        let report = super::read_touch_firmware_from(&mut OneShot { consumed: false }).unwrap();
+        assert!(super::touch_firmware_is_non_thp(&report));
+        assert_eq!(classify_touch_panel_version(&report), 1);
+    }
+
+    #[test]
+    fn non_thp_backend_only_exposes_native_rate_requests() {
+        assert_eq!(super::non_thp_goodix_profile_rate(1).unwrap(), 240);
+        assert_eq!(super::non_thp_goodix_profile_rate(2).unwrap(), 480);
+        assert_eq!(super::non_thp_goodix_profile_rate(3).unwrap(), 480);
+        assert!(super::non_thp_goodix_profile_rate(0).is_err());
+    }
+
+    #[test]
     fn module_socket_accepts_only_root_or_the_installed_app_uid() {
         let policy = AppUidPolicy::Enforce(10_321);
         assert!(client_uid_allowed(0, policy));
@@ -7089,27 +7200,32 @@ com.saan.duchamp.essential 10228 0 /data/user/0/com.saan.duchamp.essential defau
     }
 
     #[test]
-    fn maps_every_charging_profile_to_duchamps_verified_fcc_ceiling() {
+    fn maps_charging_tiers_within_duchamps_global_fcc_ceiling() {
         assert!(valid_charging_profile(0));
         assert!(valid_charging_profile(25));
         assert!(valid_charging_profile(33));
-        assert!(valid_charging_profile(65));
-        assert!(valid_charging_profile(85));
-        assert!(valid_charging_profile(90));
+        assert!(valid_charging_profile(45));
+        assert!(valid_charging_profile(55));
+        assert!(valid_charging_profile(67));
+        assert!(!valid_charging_profile(65));
+        assert!(!valid_charging_profile(85));
+        assert!(!valid_charging_profile(90));
         assert!(!valid_charging_profile(8));
         assert!(!valid_charging_profile(100));
 
         assert_eq!(charging_profile_fcc_ua(0), None);
-        assert_eq!(charging_profile_fcc_ua(25), Some(6_111_000));
-        assert_eq!(charging_profile_fcc_ua(33), Some(8_067_000));
-        assert_eq!(charging_profile_fcc_ua(65), Some(15_889_000));
-        assert_eq!(charging_profile_fcc_ua(85), Some(20_778_000));
-        assert_eq!(charging_profile_fcc_ua(90), Some(22_000_000));
+        assert_eq!(charging_profile_fcc_ua(25), Some(4_478_000));
+        assert_eq!(charging_profile_fcc_ua(33), Some(5_910_000));
+        assert_eq!(charging_profile_fcc_ua(45), Some(8_060_000));
+        assert_eq!(charging_profile_fcc_ua(55), Some(9_851_000));
+        assert_eq!(charging_profile_fcc_ua(67), Some(12_000_000));
     }
 
     #[test]
-    fn migrates_the_legacy_boost_switch_to_the_full_90_watt_profile() {
-        assert_eq!(normalize_charging_profile(8), 90);
+    fn migrates_legacy_rodin_charging_tiers_to_duchamp_67() {
+        for old in [8, 65, 85, 90] {
+            assert_eq!(normalize_charging_profile(old), 67);
+        }
         assert_eq!(normalize_charging_profile(33), 33);
         assert_eq!(normalize_charging_profile(-1), 0);
     }
