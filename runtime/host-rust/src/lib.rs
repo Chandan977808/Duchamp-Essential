@@ -529,7 +529,7 @@ pub extern "C" fn duchamp_host_haptic_ready() -> i32 {
 
 pub fn duchamp_host_open_url_jni(code: i32) -> bool {
     let url = match code {
-        0 => "https://github.com/NEESCHAL-3",
+        0 => "https://github.com/Chandan977808/Duchamp-Essential",
         1 => "https://t.me/saan_os_discussion",
         _ => return false,
     };

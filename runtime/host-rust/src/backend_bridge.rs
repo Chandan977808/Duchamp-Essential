@@ -918,7 +918,7 @@ fn io_name(code: i32) -> Option<&'static str> {
 fn perform(command: Command) -> Result<(), String> {
     match command {
         Command::Refresh => Ok(()),
-        Command::Charging(v) if matches!(v, 0 | 25 | 33 | 65 | 85 | 90) => {
+        Command::Charging(v) if matches!(v, 0 | 25 | 33 | 45 | 55 | 67) => {
             request(&format!("SET charging {v}")).map(|_| ())
         }
         Command::BypassCharging(v) if matches!(v, 0 | 1) => {
@@ -1017,7 +1017,7 @@ fn perform(command: Command) -> Result<(), String> {
                     if let Some(r) = runtime() {
                         r.cache.extended[52].store(a, Ordering::Release);
                         if a == 1 {
-                            r.cache.extended[48].store(1300, Ordering::Release);
+                            r.cache.extended[48].store(1400, Ordering::Release);
                             r.cache.extended[51].store(0, Ordering::Release);
                         }
                     }
@@ -1550,7 +1550,7 @@ pub extern "C" fn duchamp_backend_get_charging_mode() -> i32 {
 }
 #[unsafe(no_mangle)]
 pub extern "C" fn duchamp_backend_set_charging_mode(v: i32) -> i32 {
-    if !matches!(v, 0 | 25 | 33 | 65 | 85 | 90) {
+    if !matches!(v, 0 | 25 | 33 | 45 | 55 | 67) {
         return 0;
     }
     send_charging(Command::Charging(v))
@@ -1780,32 +1780,32 @@ pub extern "C" fn duchamp_backend_set_performance_profile(v: i32) -> i32 {
         r.cache.performance.store(v, Ordering::Release);
         match v {
             3 => {
-                r.cache.extended[47].store(1300, Ordering::Release); // min_freq
-                r.cache.extended[48].store(1300, Ordering::Release); // max_freq
+                r.cache.extended[47].store(1400, Ordering::Release); // min_freq
+                r.cache.extended[48].store(1400, Ordering::Release); // max_freq
                 r.cache.extended[49].store(1, Ordering::Release); // gov = performance
                 r.cache.extended[50].store(1, Ordering::Release); // ged_boost = 1
                 r.cache.extended[52].store(1, Ordering::Release); // uncap = 1
                 r.cache.extended[59].store(1, Ordering::Release); // power_policy = always_on
             }
             1 => {
-                r.cache.extended[47].store(260, Ordering::Release); // min_freq
-                r.cache.extended[48].store(1300, Ordering::Release); // max_freq
+                r.cache.extended[47].store(265, Ordering::Release); // min_freq
+                r.cache.extended[48].store(1400, Ordering::Release); // max_freq
                 r.cache.extended[49].store(0, Ordering::Release); // gov = simple_ondemand
                 r.cache.extended[50].store(1, Ordering::Release); // ged_boost = 1
                 r.cache.extended[52].store(0, Ordering::Release); // uncap = 0
                 r.cache.extended[59].store(1, Ordering::Release); // power_policy = always_on
             }
             2 => {
-                r.cache.extended[47].store(260, Ordering::Release); // min_freq
-                r.cache.extended[48].store(598, Ordering::Release); // max_freq
+                r.cache.extended[47].store(265, Ordering::Release); // min_freq
+                r.cache.extended[48].store(601, Ordering::Release); // max_freq
                 r.cache.extended[49].store(2, Ordering::Release); // gov = powersave
                 r.cache.extended[50].store(0, Ordering::Release); // ged_boost = 0
                 r.cache.extended[52].store(0, Ordering::Release); // uncap = 0
                 r.cache.extended[59].store(0, Ordering::Release); // power_policy = coarse_demand
             }
             _ => {
-                r.cache.extended[47].store(260, Ordering::Release); // min_freq
-                r.cache.extended[48].store(1300, Ordering::Release); // max_freq
+                r.cache.extended[47].store(265, Ordering::Release); // min_freq
+                r.cache.extended[48].store(1400, Ordering::Release); // max_freq
                 r.cache.extended[49].store(4, Ordering::Release); // gov = OEM dummy
                 r.cache.extended[50].store(0, Ordering::Release); // GED boost = off
                 r.cache.extended[52].store(0, Ordering::Release); // uncap = 0

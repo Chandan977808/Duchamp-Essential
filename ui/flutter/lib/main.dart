@@ -5192,7 +5192,7 @@ class SupportScreen extends StatelessWidget {
         _CommunityCard(
           title: 'GitHub Repository',
           subtitle: 'Star, fork, and inspect the open-source code',
-          badge: 'NEESCHAL-3',
+          badge: 'Saan',
           iconWidget: GithubIcon(color: colors.primary, size: 22),
           accent: colors.primary,
           onTap: () => _openLink(0),
@@ -5237,7 +5237,7 @@ class SupportScreen extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    'SaanOS',
+                    'Saan',
                     style: TextStyle(
                       fontSize: 11.5,
                       fontWeight: FontWeight.w800,
@@ -6235,9 +6235,9 @@ Color _chargingProfileAccent(int watts) => switch (watts) {
   0 => const Color(0xFF67C2FF),
   25 => const Color(0xFF35C997),
   33 => const Color(0xFF35C997),
-  65 => const Color(0xFF35C997),
-  85 => const Color(0xFF35C997),
-  90 => const Color(0xFFFFA340),
+  45 => const Color(0xFF35C997),
+  55 => const Color(0xFF35C997),
+  67 => const Color(0xFFFFA340),
   _ => const Color(0xFF35C997),
 };
 
@@ -6245,9 +6245,9 @@ IconData _chargingProfileIcon(int watts) => switch (watts) {
   0 => Icons.auto_awesome_rounded,
   25 => Icons.eco_rounded,
   33 => Icons.battery_charging_full_rounded,
-  65 => Icons.bolt_rounded,
-  85 => Icons.flash_on_rounded,
-  90 => Icons.offline_bolt_rounded,
+  45 => Icons.bolt_rounded,
+  55 => Icons.flash_on_rounded,
+  67 => Icons.offline_bolt_rounded,
   _ => Icons.bolt_rounded,
 };
 
@@ -6255,9 +6255,9 @@ String _chargingProfileName(int watts) => switch (watts) {
   0 => 'OEM Adaptive',
   25 => 'Cool Daily',
   33 => 'Balanced Fast',
-  65 => 'Fast Daily',
-  85 => 'Near Maximum',
-  90 => 'HyperCharge',
+  45 => 'Fast Daily',
+  55 => 'Near Maximum',
+  67 => 'Turbo Charge',
   _ => 'Charge Output',
 };
 
@@ -6265,9 +6265,9 @@ String _chargingProfileDescription(int watts) => switch (watts) {
   0 => 'ROM-managed charging, taper and battery care',
   25 => 'Lower-heat everyday charging',
   33 => 'Balanced speed and temperature',
-  65 => 'Fast daily charging with headroom',
-  85 => 'Near-maximum charging',
-  90 => 'Full software charging ceiling',
+  45 => 'Fast daily charging with headroom',
+  55 => 'Near-maximum charging',
+  67 => 'Duchamp native maximum charging tier',
   _ => 'Select a charging profile',
 };
 
@@ -6312,7 +6312,7 @@ class _ChargingModeCardState extends State<_ChargingModeCard> {
     }
     return selected == 0
         ? 'ROM and battery controller manage charging'
-        : 'Duchamp Essential fast-charge path · $selected W maximum';
+        : '$selected W target tier · Actual power follows charger and battery';
   }
 
   void _select(int profile) {
@@ -6382,9 +6382,9 @@ class _ChargingModeCardState extends State<_ChargingModeCard> {
                     Text(
                       selected == 0
                           ? 'OEM Adaptive'
-                          : selected == 90
-                          ? '90 W HyperCharge'
-                          : '$selected W Charge Limit',
+                          : selected == 67
+                          ? '67 W Turbo Charge'
+                          : '$selected W Charge Target',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
@@ -6698,7 +6698,7 @@ class _ChargingPowerSpectrum extends StatelessWidget {
   final bool enabled;
   final ValueChanged<int> onSelect;
 
-  static const List<int> _profiles = <int>[25, 33, 65, 85, 90];
+  static const List<int> _profiles = <int>[25, 33, 45, 55, 67];
 
   Widget _profileTile(
     BuildContext context, {

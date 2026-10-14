@@ -608,7 +608,9 @@ fn write_verified(path: &Path, value: &str) -> Result<String, String> {
     read_trimmed(path)
 }
 
-const DUCHAMP_MAX_FCC_UA: i64 = 22_000_000;
+// MiCode bsp-duchamp-u-oss: global pd_cp_manager_gl max_fcc = 12000 mA.
+// FCC tiers are requests; negotiated adapter watts and battery taper differ.
+const DUCHAMP_MAX_FCC_UA: i64 = 12_000_000;
 const BYPASS_CHARGING_PATHS: [&str; 2] = [
     "/sys/class/power_supply/battery/bypass_charging",
     "/sys/class/power_supply/battery/bypass_charge",
@@ -806,14 +808,14 @@ fn configure_bypass(enabled: Option<bool>, threshold: Option<i32>) -> Result<(),
 }
 
 fn valid_charging_profile(profile: i32) -> bool {
-    matches!(profile, 0 | 25 | 33 | 65 | 85 | 90)
+    matches!(profile, 0 | 25 | 33 | 45 | 55 | 67)
 }
 
 fn normalize_charging_profile(profile: i32) -> i32 {
     match profile {
         // v1.18.x stored the old boost switch as 8. Preserve that intent as
         // the full Duchamp charging tier after upgrading.
-        8 => 90,
+        8 | 65 | 85 | 90 => 67,
         value if valid_charging_profile(value) => value,
         _ => 0,
     }
@@ -821,11 +823,9 @@ fn normalize_charging_profile(profile: i32) -> i32 {
 
 fn charging_profile_fcc_ua(profile: i32) -> Option<i64> {
     match profile {
-        25 => Some(6_111_000),
-        33 => Some(8_067_000),
-        65 => Some(15_889_000),
-        85 => Some(20_778_000),
-        90 => Some(DUCHAMP_MAX_FCC_UA),
+        25 | 33 | 45 | 55 | 67 => {
+            Some(((DUCHAMP_MAX_FCC_UA / 1_000 * i64::from(profile) + 33) / 67) * 1_000)
+        }
         _ => None,
     }
 }
@@ -872,7 +872,7 @@ fn apply_charging_profile(profile: i32) -> Result<(), String> {
     let actual = write_verified(&fcc_path, &target.to_string())?
         .parse::<i64>()
         .map_err(|_| "charging FCC readback is invalid".to_string())?;
-    if actual > target {
+    if actual <= 0 || actual > target {
         return Err(format!(
             "charging FCC verify failed: requested <= {target}, live {actual}"
         ));
@@ -1867,8 +1867,35 @@ fn write_if_present(path: &str, value: &str) -> Result<bool, String> {
     Ok(true)
 }
 
-fn clear_gpu_cooling_cap() {
-    let _ = service_control::write("/sys/class/thermal/cooling_device3/cur_state", "0");
+fn find_gpu_cooling_state(root: &Path) -> Option<std::path::PathBuf> {
+    fs::read_dir(root).ok()?.flatten().find_map(|entry| {
+        if !entry.file_name().to_string_lossy().starts_with("cooling_device") {
+            return None;
+        }
+        let kind = fs::read_to_string(entry.path().join("type")).ok()?;
+        if kind.trim() != "devfreq-13000000.mali" {
+            return None;
+        }
+        Some(entry.path().join("cur_state"))
+    })
+}
+
+fn gpu_cooling_state_path() -> Option<std::path::PathBuf> {
+    static PATH: OnceLock<std::path::PathBuf> = OnceLock::new();
+    if let Some(path) = PATH.get() {
+        return Some(path.clone());
+    }
+    let path = find_gpu_cooling_state(Path::new("/sys/class/thermal"))?;
+    let _ = PATH.set(path.clone());
+    Some(path)
+}
+
+fn clear_gpu_cooling_cap() -> Result<(), String> {
+    let path = gpu_cooling_state_path()
+        .ok_or_else(|| "Duchamp Mali cooling device was not found".to_string())?;
+    service_control::write(&path, "0")
+        .map_err(|error| format!("GPU cooling state write failed: {error}"))?;
+    Ok(())
 }
 
 fn profile_uses_ged_boost(profile: i32) -> bool {
@@ -1876,6 +1903,7 @@ fn profile_uses_ged_boost(profile: i32) -> bool {
 }
 
 fn write_beast_gpu_constraints() {
+    let _ = clear_gpu_cooling_cap();
     let _ = service_control::write("/sys/class/misc/mali0/device/power_policy", "always_on");
     let _ = service_control::write("/sys/kernel/ged/hal/gpu_boost_level", "2");
     let _ = service_control::write("/sys/module/ged/parameters/ged_boost_enable", "1");
@@ -1943,8 +1971,12 @@ fn settle_beast_gpu_lock(attempts: usize, delay: Duration) -> bool {
 }
 
 pub fn enforce_performance_profile(profile: i32) -> bool {
-    if matches!(profile, 1 | 3) {
-        clear_gpu_cooling_cap();
+    if gpu_opp_frequency_table().is_err() {
+        return false;
+    }
+
+    if matches!(profile, 1 | 3) && clear_gpu_cooling_cap().is_err() {
+        return false;
     }
 
     match profile {
@@ -1972,7 +2004,7 @@ pub fn enforce_performance_profile(profile: i32) -> bool {
                 "/sys/class/misc/mali0/device/devfreq/13000000.mali/governor",
                 "simple_ondemand",
             );
-            let _ = service_control::write("/sys/kernel/ged/hal/custom_boost_gpu_freq", "40");
+            let _ = service_control::write("/sys/kernel/ged/hal/custom_boost_gpu_freq", gpu_get_lowest_opp_index().to_string());
             let _ = service_control::write("/sys/kernel/ged/hal/custom_upbound_gpu_freq", "0");
             let _ = service_control::write("/sys/module/ged/parameters/gpu_bottom_freq", "265000");
             let _ =
@@ -2006,8 +2038,10 @@ pub fn enforce_performance_profile(profile: i32) -> bool {
                 "/sys/class/misc/mali0/device/devfreq/13000000.mali/governor",
                 "powersave",
             );
-            let _ = service_control::write("/sys/kernel/ged/hal/custom_boost_gpu_freq", "40");
-            let _ = service_control::write("/sys/kernel/ged/hal/custom_upbound_gpu_freq", "27");
+            let _ = service_control::write("/sys/kernel/ged/hal/custom_boost_gpu_freq", gpu_get_lowest_opp_index().to_string());
+            if let Ok(index) = gpu_opp_index_for_frequency(601) {
+                let _ = service_control::write("/sys/kernel/ged/hal/custom_upbound_gpu_freq", index.to_string());
+            }
             let _ = service_control::write("/sys/module/ged/parameters/gpu_bottom_freq", "265000");
             let _ =
                 service_control::write("/sys/module/ged/parameters/gpu_cust_boost_freq", "265000");
@@ -2043,7 +2077,7 @@ pub fn enforce_performance_profile(profile: i32) -> bool {
                 "/sys/class/misc/mali0/device/devfreq/13000000.mali/governor",
                 "dummy",
             );
-            let _ = service_control::write("/sys/kernel/ged/hal/custom_boost_gpu_freq", "40");
+            let _ = service_control::write("/sys/kernel/ged/hal/custom_boost_gpu_freq", gpu_get_lowest_opp_index().to_string());
             let _ = service_control::write("/sys/kernel/ged/hal/custom_upbound_gpu_freq", "0");
             let _ = service_control::write("/sys/module/ged/parameters/gpu_bottom_freq", "265000");
             let _ =
@@ -2163,7 +2197,7 @@ pub fn apply_performance_profile(profile: i32) -> Result<(), String> {
 
 fn classify_touch_panel_version(version: &str) -> i32 {
     let version = version.to_ascii_lowercase();
-    if version.contains("goodix") || version.contains("gdix") || version.contains("gt9916") {
+    if version.contains("goodix") || version.contains("gdix") || version.contains("9916") {
         1
     } else if version.contains("focal") || version.contains("fts") || version.contains("ft3683") {
         2
@@ -2172,8 +2206,44 @@ fn classify_touch_panel_version(version: &str) -> i32 {
     }
 }
 
+fn touch_firmware_is_non_thp(version: &str) -> bool {
+    version.to_ascii_lowercase().contains("non thp")
+        || version.to_ascii_lowercase().contains("non-thp")
+}
+
+fn read_touch_firmware_from(reader: &mut impl Read) -> Result<String, String> {
+    // Some vendor proc handlers consume the entry on the first read. Request
+    // the full report up front instead of read_to_string's small initial probe.
+    let mut buffer = [0u8; 16384];
+    let count = reader.read(&mut buffer).map_err(|e| format!("touch firmware read: {e}"))?;
+    if count == buffer.len() {
+        return Err("touch firmware report may be truncated".into());
+    }
+    Ok(String::from_utf8_lossy(&buffer[..count]).trim_matches('\0').to_string())
+}
+
+fn read_touch_firmware() -> Result<String, String> {
+    let mut file = fs::File::open("/proc/tp_fw_version")
+        .map_err(|e| format!("touch firmware open: {e}"))?;
+    read_touch_firmware_from(&mut file)
+}
+
+fn touch_uses_non_thp_goodix() -> bool {
+    touch_panel_code() == 1
+        && touch_firmware_is_non_thp(&read_touch_firmware().unwrap_or_default())
+}
+
+fn non_thp_goodix_profile_rate(profile: i32) -> Result<u16, String> {
+    match profile {
+        1 => Ok(240),
+        2 => Ok(480),
+        3 => Ok(480), // Native source remains 480; output may be resampled.
+        _ => Err("invalid non-THP touch profile".into()),
+    }
+}
+
 fn touch_panel_code() -> i32 {
-    let version = fs::read_to_string("/proc/tp_fw_version").unwrap_or_default();
+    let version = read_touch_firmware().unwrap_or_default();
     let detected = classify_touch_panel_version(&version);
     if detected != 0 {
         detected
@@ -2383,7 +2453,9 @@ fn touch_profile_is_live(profile: i32) -> bool {
         return false;
     };
     let panel = touch_panel_code();
-    let native_matches = if vendor_binder::touch_available() {
+    let native_matches = if touch_uses_non_thp_goodix() {
+        goodix_report_rate_hz() == Some(expected_rate)
+    } else if vendor_binder::touch_available() {
         let thp_matches = locate_touch_thp_layout()
             .and_then(|layout| read_touch_thp_rate(layout, layout.current_rate_addr))
             .map(|rate| rate == expected_rate)
@@ -2555,6 +2627,11 @@ fn set_touch_profile(profile: i32) -> Result<(), String> {
 }
 
 fn apply_touch_profile_locked(profile: i32) -> Result<(), String> {
+    // Non-THP firmware has no THP timing block. Use its readable driver latch
+    // even when the Xiaomi HAL exists; never open another process's memory.
+    if touch_uses_non_thp_goodix() {
+        return apply_non_thp_goodix_profile(profile);
+    }
     service_control::remember("touch.hal", serde_json::json!(true))?;
 
     TOUCH_APPLY_ACK.store(0, Ordering::Release);
@@ -2628,6 +2705,46 @@ fn apply_touch_profile_locked(profile: i32) -> Result<(), String> {
     Ok(())
 }
 
+fn apply_non_thp_goodix_profile(profile: i32) -> Result<(), String> {
+    let rate = non_thp_goodix_profile_rate(profile)?;
+    const NODE: &str = "/sys/devices/platform/goodix_ts.0/switch_report_rate";
+    let previous = goodix_report_rate_hz()
+        .ok_or("cannot read non-THP Goodix report rate; refusing an unverified write")?;
+    TOUCH_APPLY_ACK.store(0, Ordering::Release);
+    touch_resampler::set_target_hz(0)?;
+    let result = apply_touch_driver_fallback(if profile == 3 { 2 } else { profile }, 1)
+        .and_then(|()| {
+            if profile == 3 { touch_resampler::set_non_thp_target_hz(1000) } else { Ok(()) }
+        })
+        .and_then(|()| mutate_persisted_state(|state| state.touch = profile));
+    if let Err(error) = result {
+        let stop = touch_resampler::set_target_hz(0);
+        let value = if previous == 240 { "0" } else { "1" };
+        let rollback = fs::write(NODE, value)
+            .map_err(|e| format!("Goodix rollback write: {e}"))
+            .and_then(|()| {
+                if goodix_report_rate_hz() == Some(previous) {
+                    Ok(())
+                } else {
+                    Err("Goodix rollback readback mismatch".into())
+                }
+            });
+        TOUCH_APPLY_ACK.store(-1, Ordering::Release);
+        let error = match stop { Ok(()) => error, Err(stop_error) => format!("{error}; {stop_error}") };
+        return Err(match rollback {
+            Ok(()) => error,
+            Err(rollback_error) => format!("{error}; {rollback_error}"),
+        });
+    }
+    TOUCH_STATE.store(profile, Ordering::Release);
+    TOUCH_SUSTAINED_RATE.store(if profile == 3 { 1000 } else { i32::from(rate) }, Ordering::Release);
+    TOUCH_INSTANT_RATE.store(0, Ordering::Release);
+    TOUCH_PANEL.store(1, Ordering::Release);
+    TOUCH_CONTROL_PATH.store(if profile == 3 { 3 } else { 2 }, Ordering::Release);
+    TOUCH_APPLY_ACK.store(1, Ordering::Release);
+    Ok(())
+}
+
 fn release_touch_control() -> Result<(), String> {
     let _guard = touch_profile_apply_lock()
         .lock()
@@ -2635,11 +2752,17 @@ fn release_touch_control() -> Result<(), String> {
     touch_resampler::set_target_hz(0)?;
     let originals = service_control::originals();
     let mut released = Vec::new();
-    if service_control::original("touch.hal").is_some() && vendor_binder::touch_available() {
+    if service_control::original("touch.hal").is_some()
+        && !touch_uses_non_thp_goodix()
+        && vendor_binder::touch_available()
+    {
         // Release game/super-report requests once, not on every wake or boot.
         apply_touch_hal_profile(0)?;
     }
-    if let Some(rate) = service_control::original("touch.thp_rate").and_then(|v| v.as_u64()) {
+    if let Some(rate) = service_control::original("touch.thp_rate")
+        .and_then(|v| v.as_u64())
+        .filter(|_| !touch_uses_non_thp_goodix())
+    {
         let layout = locate_touch_thp_layout()?;
         let mut memory = OpenOptions::new()
             .read(true)
@@ -4596,7 +4719,7 @@ fn gaming_dynamic_guard() {
         // Gaming and Beast own only the Mali cooling device. The vendor thermal
         // services remain running for CPU and platform management while this
         // guard prevents a GPU cooling cap from replacing their 1400 MHz target.
-        let _ = service_control::write("/sys/class/thermal/cooling_device3/cur_state", "0");
+        let _ = clear_gpu_cooling_cap();
 
         if profile == 3 {
             // MediaTek's power HAL can publish its stock OPP 40 target after
@@ -5154,9 +5277,7 @@ fn compact_zram() -> Result<(), String> {
 // MALI GPU & MEDIATEK GED HELPERS
 
 fn gpu_read_file(primary: &str, fallback: &str) -> Option<String> {
-    fs::read_to_string(primary)
-        .or_else(|_| fs::read_to_string(fallback))
-        .ok()
+    gpu_read_raw(primary).or_else(|| gpu_read_raw(fallback))
 }
 
 fn gpu_write_file(primary: &str, fallback: &str, value: &str) -> Result<(), String> {
@@ -5185,12 +5306,43 @@ fn gpu_write_file(primary: &str, fallback: &str, value: &str) -> Result<(), Stri
 fn gpu_read_raw(path: &str) -> Option<String> {
     use std::io::Read;
     let mut f = fs::File::open(path).ok()?;
-    let mut buf = [0u8; 256];
+    let mut buf = [0u8; 16384];
     let n = f.read(&mut buf).ok()?;
-    if n == 0 {
+    if n == 0 || n == buf.len() {
         return None;
     }
     String::from_utf8(buf[..n].to_vec()).ok()
+}
+
+fn parse_gpu_opp_frequency_table(raw: &str) -> Result<Vec<i32>, String> {
+    let table = raw.split_whitespace().map(|item| {
+        let hz = item.parse::<u64>().map_err(|_| "invalid GPU frequency table")?;
+        if hz == 0 || hz % 1_000_000 != 0 || hz / 1_000_000 > i32::MAX as u64 {
+            return Err("invalid GPU frequency units");
+        }
+        Ok((hz / 1_000_000) as i32)
+    }).collect::<Result<Vec<_>, _>>().map_err(str::to_string)?;
+    if table.is_empty() || !table.windows(2).all(|pair| pair[0] > pair[1]) {
+        return Err("GPU OPP table must be strictly descending".into());
+    }
+    Ok(table)
+}
+
+fn gpu_opp_frequency_table() -> Result<Vec<i32>, String> {
+    static TABLE: OnceLock<Vec<i32>> = OnceLock::new();
+    if let Some(table) = TABLE.get() { return Ok(table.clone()); }
+    let raw = gpu_read_file("/sys/class/devfreq/13000000.mali/available_frequencies",
+        "/sys/class/misc/mali0/device/devfreq/13000000.mali/available_frequencies")
+        .ok_or("GPU frequency table unavailable")?;
+    let table = parse_gpu_opp_frequency_table(&raw)?;
+    let _ = TABLE.set(table.clone());
+    Ok(table)
+}
+
+fn gpu_opp_index_for_frequency(mhz: i32) -> Result<i32, String> {
+    gpu_opp_frequency_table()?.iter().position(|value| *value == mhz)
+        .map(|index| index as i32)
+        .ok_or_else(|| format!("GPU frequency {mhz} MHz is not in the supported OPP table"))
 }
 
 fn gpu_get_loading() -> i32 {
@@ -5213,10 +5365,13 @@ fn gpu_get_cur_opp_index() -> i32 {
                 .next()
                 .and_then(|part| part.parse::<i32>().ok())
         })
-        .unwrap_or(40)
+        .unwrap_or_else(gpu_get_lowest_opp_index)
 }
 
 fn gpu_get_lowest_opp_index() -> i32 {
+    if let Ok(table) = gpu_opp_frequency_table() {
+        return table.len().saturating_sub(1) as i32;
+    }
     gpu_read_raw("/sys/kernel/ged/hal/total_gpu_freq_level_count")
         .and_then(|value| {
             value
@@ -5266,7 +5421,7 @@ fn parse_ged_current_frequency_mhz(raw: &str) -> Option<i32> {
         None
     } else if value > 10_000_000 {
         Some((value / 1_000_000) as i32)
-    } else if value > 1_300 {
+    } else if value >= 100_000 {
         Some((value / 1_000) as i32)
     } else {
         Some(value as i32)
@@ -5354,9 +5509,9 @@ fn gpu_boost_pipeline_matches(enabled: bool) -> bool {
 }
 
 fn gpu_get_thermal_state() -> i32 {
-    fs::read_to_string("/sys/class/thermal/cooling_device3/cur_state")
-        .ok()
-        .and_then(|s| s.trim().parse().ok())
+    gpu_cooling_state_path()
+        .and_then(|path| fs::read_to_string(path).ok())
+        .and_then(|raw| raw.trim().parse().ok())
         .unwrap_or(-1)
 }
 
@@ -5472,7 +5627,7 @@ fn set_gpu_min_freq(mhz: i32) -> Result<(), String> {
     }
     let hz = (mhz as u64) * 1_000_000;
     let khz = (mhz as u64) * 1_000;
-    let opp_boost = ((1400 - mhz) / 28).clamp(0, 40);
+    let opp_boost = gpu_opp_index_for_frequency(mhz)?;
     let _ = service_control::write(
         "/sys/kernel/ged/hal/custom_boost_gpu_freq",
         opp_boost.to_string(),
@@ -5511,7 +5666,7 @@ fn set_gpu_max_freq(mhz: i32) -> Result<(), String> {
     }
     let hz = (mhz as u64) * 1_000_000;
     let khz = (mhz as u64) * 1_000;
-    let opp_upbound = ((1400 - mhz) / 28).clamp(0, 40);
+    let opp_upbound = gpu_opp_index_for_frequency(mhz)?;
     let _ = service_control::write(
         "/sys/kernel/ged/hal/custom_upbound_gpu_freq",
         opp_upbound.to_string(),
@@ -5576,12 +5731,11 @@ fn set_gpu_uncap(enable: bool) -> Result<(), String> {
     let mut beast_locked = true;
 
     if enable {
-        clear_gpu_cooling_cap();
         beast_locked = settle_beast_gpu_lock(60, Duration::from_millis(25));
     } else {
         service_control::write("/sys/class/misc/mali0/device/power_policy", "coarse_demand")
             .map_err(|error| format!("GPU power policy write failed: {error}"))?;
-        let _ = service_control::write("/sys/kernel/ged/hal/custom_boost_gpu_freq", "40");
+        let _ = service_control::write("/sys/kernel/ged/hal/custom_boost_gpu_freq", gpu_get_lowest_opp_index().to_string());
         let _ = service_control::write("/sys/kernel/ged/hal/custom_upbound_gpu_freq", "0");
         let _ = service_control::write("/sys/kernel/ged/hal/gpu_boost_level", "0");
         gpu_write_file(
@@ -6128,10 +6282,13 @@ fn restore_released_controls() -> Result<(), String> {
     }
     run("touch output", touch_resampler::set_target_hz(0));
     if service_control::original("touch.hal").is_some() {
-        if vendor_binder::touch_available() {
+        if !touch_uses_non_thp_goodix() && vendor_binder::touch_available() {
             run("OEM touch", apply_touch_hal_profile(0));
         }
-        if let Some(rate) = service_control::original("touch.thp_rate").and_then(|v| v.as_u64()) {
+        if let Some(rate) = service_control::original("touch.thp_rate")
+            .and_then(|v| v.as_u64())
+            .filter(|_| !touch_uses_non_thp_goodix())
+        {
             // Restore the saved timing, including OEM values outside fixed-rate presets.
             run(
                 "touch timing",
@@ -6463,6 +6620,39 @@ fn handle_enabled_command(line: &str) -> String {
     if cmd == "PING" {
         return format!("OK PONG {PROTOCOL_VERSION}");
     }
+    if cmd == "GET charging.diagnostics" {
+        let profile = persisted_state().lock().ok().map(|state| state.charging).unwrap_or(-1);
+        let path = charging_fcc_path();
+        let fcc = path.as_ref().and_then(|path| read_i64(path));
+        return format!("OK profile={profile};rated_watts=67;fcc_path={path:?};fcc_ua={fcc:?};target_fcc_ua={:?};ceiling_fcc_ua={DUCHAMP_MAX_FCC_UA};sic_mode_present={};usb_online={};master_online={:?};primary_fcc_ma={:?};master_fcc_ua={:?}",
+            charging_profile_fcc_ua(profile), charging_path().exists(), usb("online"),
+            gpu_read_raw("/sys/class/power_supply/mtk-master-charger/online"),
+            gpu_read_raw("/sys/class/power_supply/primary_chg/constant_charge_current"),
+            gpu_read_raw("/sys/class/power_supply/mtk-master-charger/constant_charge_current_max"));
+    }
+    if cmd == "GET gpu.diagnostics" {
+        let state = persisted_state().lock().ok().map(|state| state.perf).unwrap_or(-1);
+        return format!("OK profile={state};current={};opp={};min={};max={};governor={};dvfs={};GED={};policy={};table={:?};boost_raw={:?};ceiling_raw={:?};master_raw={:?};boost_enable_raw={:?};smart_boost_raw={:?};cooling_path={:?};cooling_state={}",
+            gpu_get_cur_freq_mhz(), gpu_get_cur_opp_index(), gpu_get_min_freq_mhz(), gpu_get_max_freq_mhz(),
+            gpu_get_governor(), gpu_get_dvfs_enabled(), gpu_get_ged_boost(), gpu_get_power_policy(),
+            gpu_opp_frequency_table(), gpu_read_raw("/sys/kernel/ged/hal/custom_boost_gpu_freq"),
+            gpu_read_raw("/sys/kernel/ged/hal/custom_upbound_gpu_freq"),
+            gpu_read_raw("/sys/module/ged/parameters/ged_boost_enable"),
+            gpu_read_raw("/sys/module/ged/parameters/boost_gpu_enable"),
+            gpu_read_raw("/sys/module/ged/parameters/ged_smart_boost"),
+            gpu_cooling_state_path(), gpu_get_thermal_state());
+    }
+    if cmd == "GET touch.diagnostics" {
+        return match read_touch_firmware() {
+            Ok(version) => format!("OK firmware={:?};non_thp={};panel={};driver_rate={:?};resampler_ready={};resampler_error={};attachment={};physical_frames={};injected_frames={}",
+                version, touch_firmware_is_non_thp(&version),
+                classify_touch_panel_version(&version), goodix_report_rate_hz(),
+                touch_resampler::ready_hz(), touch_resampler::last_error(),
+                touch_resampler::attachment_path(), touch_resampler::physical_frames(),
+                touch_resampler::injected_frames()),
+            Err(error) => format!("ERR {error}"),
+        };
+    }
     if cmd == "GET snapshot" {
         return format!("OK {}", snapshot());
     }
@@ -6502,7 +6692,7 @@ fn handle_enabled_command(line: &str) -> String {
     let result: Result<(), String> = if let Some(arg) = cmd.strip_prefix("SET charging ") {
         let value = match arg.trim() {
             "standard" | "adaptive" => 0,
-            "boost" => 90,
+            "boost" => 67,
             raw => match raw.parse::<i32>() {
                 Ok(value) => value,
                 Err(_) => return "ERR invalid charging profile".into(),
@@ -6903,6 +7093,84 @@ mod tests {
     }
 
     #[test]
+    fn discovers_duchamp_cooling_by_type_without_touching_other_devices() {
+        let root = std::env::temp_dir().join(format!(
+            "duchamp-cooling-discovery-{}", std::process::id()
+        ));
+        std::fs::create_dir(&root).unwrap();
+        for (name, kind) in [
+            ("cooling_device3", "charger-cooler"),
+            ("cooling_device9", "devfreq-14000000.mali"),
+        ] {
+            let dir = root.join(name);
+            std::fs::create_dir(&dir).unwrap();
+            std::fs::write(dir.join("type"), kind).unwrap();
+            std::fs::write(dir.join("cur_state"), "42").unwrap();
+        }
+        assert!(super::find_gpu_cooling_state(&root).is_none());
+        let gpu = root.join("cooling_device2");
+        std::fs::create_dir(&gpu).unwrap();
+        std::fs::write(gpu.join("type"), "devfreq-13000000.mali\n").unwrap();
+        std::fs::write(gpu.join("cur_state"), "42").unwrap();
+        assert_eq!(super::find_gpu_cooling_state(&root), Some(gpu.join("cur_state")));
+        for name in ["cooling_device3", "cooling_device9", "cooling_device2"] {
+            assert_eq!(std::fs::read_to_string(root.join(name).join("cur_state")).unwrap(), "42");
+        }
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn parses_duchamp_gpu_table_without_rodin_index_assumptions() {
+        let raw = "1400000000 1383000000 1367000000 1351000000 1335000000 1319000000 1303000000 1287000000 1271000000 1255000000 1238000000 1222000000 1206000000 1190000000 1174000000 1158000000 1142000000 1126000000 1110000000 1093000000 1077000000 1061000000 1045000000 1029000000 1013000000 997000000 981000000 965000000 948000000 932000000 916000000 900000000 884000000 868000000 852000000 836000000 820000000 800000000 780000000 760000000 740000000 720000000 701000000 681000000 661000000 641000000 621000000 601000000 582000000 562000000 542000000 522000000 502000000 483000000 463000000 443000000 423000000 403000000 383000000 364000000 344000000 324000000 304000000 284000000 265000000";
+        let table = super::parse_gpu_opp_frequency_table(raw).unwrap();
+        assert_eq!(table.len(), 65);
+        assert_eq!(table[0], 1400);
+        assert_eq!(table[47], 601);
+        assert_eq!(table[64], 265);
+        assert!(super::parse_gpu_opp_frequency_table("265000000 1400000000").is_err());
+        assert!(super::parse_gpu_opp_frequency_table("1400000000 1400000000").is_err());
+        assert!(super::parse_gpu_opp_frequency_table("garbage").is_err());
+    }
+
+    #[test]
+    fn non_thp_goodix_firmware_avoids_thp_backend() {
+        let version = "patch_pid:9916R\npatch_vid:058002e6\nconfig_version:32\nxiaomi-touch version for non thp";
+        assert_eq!(classify_touch_panel_version(version), 1);
+        assert!(super::touch_firmware_is_non_thp(version));
+        assert!(super::touch_firmware_is_non_thp("NON-THP"));
+        assert!(!super::touch_firmware_is_non_thp(
+            "xiaomi-touch version for thp"
+        ));
+        assert!(!super::touch_firmware_is_non_thp(""));
+    }
+
+    #[test]
+    fn reads_one_shot_vendor_proc_report_with_a_large_first_buffer() {
+        struct OneShot { consumed: bool }
+        impl std::io::Read for OneShot {
+            fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+                if self.consumed { return Ok(0); }
+                self.consumed = true;
+                let report = b"patch_pid:9916R\npatch_vid:058002e6\nconfig_version:32\nxiaomi-touch version for non thp";
+                let count = buf.len().min(report.len());
+                buf[..count].copy_from_slice(&report[..count]);
+                Ok(count)
+            }
+        }
+        let report = super::read_touch_firmware_from(&mut OneShot { consumed: false }).unwrap();
+        assert!(super::touch_firmware_is_non_thp(&report));
+        assert_eq!(classify_touch_panel_version(&report), 1);
+    }
+
+    #[test]
+    fn non_thp_backend_only_exposes_native_rate_requests() {
+        assert_eq!(super::non_thp_goodix_profile_rate(1).unwrap(), 240);
+        assert_eq!(super::non_thp_goodix_profile_rate(2).unwrap(), 480);
+        assert_eq!(super::non_thp_goodix_profile_rate(3).unwrap(), 480);
+        assert!(super::non_thp_goodix_profile_rate(0).is_err());
+    }
+
+    #[test]
     fn module_socket_accepts_only_root_or_the_installed_app_uid() {
         let policy = AppUidPolicy::Enforce(10_321);
         assert!(client_uid_allowed(0, policy));
@@ -6932,27 +7200,32 @@ com.saan.duchamp.essential 10228 0 /data/user/0/com.saan.duchamp.essential defau
     }
 
     #[test]
-    fn maps_every_charging_profile_to_duchamps_verified_fcc_ceiling() {
+    fn maps_charging_tiers_within_duchamps_global_fcc_ceiling() {
         assert!(valid_charging_profile(0));
         assert!(valid_charging_profile(25));
         assert!(valid_charging_profile(33));
-        assert!(valid_charging_profile(65));
-        assert!(valid_charging_profile(85));
-        assert!(valid_charging_profile(90));
+        assert!(valid_charging_profile(45));
+        assert!(valid_charging_profile(55));
+        assert!(valid_charging_profile(67));
+        assert!(!valid_charging_profile(65));
+        assert!(!valid_charging_profile(85));
+        assert!(!valid_charging_profile(90));
         assert!(!valid_charging_profile(8));
         assert!(!valid_charging_profile(100));
 
         assert_eq!(charging_profile_fcc_ua(0), None);
-        assert_eq!(charging_profile_fcc_ua(25), Some(6_111_000));
-        assert_eq!(charging_profile_fcc_ua(33), Some(8_067_000));
-        assert_eq!(charging_profile_fcc_ua(65), Some(15_889_000));
-        assert_eq!(charging_profile_fcc_ua(85), Some(20_778_000));
-        assert_eq!(charging_profile_fcc_ua(90), Some(22_000_000));
+        assert_eq!(charging_profile_fcc_ua(25), Some(4_478_000));
+        assert_eq!(charging_profile_fcc_ua(33), Some(5_910_000));
+        assert_eq!(charging_profile_fcc_ua(45), Some(8_060_000));
+        assert_eq!(charging_profile_fcc_ua(55), Some(9_851_000));
+        assert_eq!(charging_profile_fcc_ua(67), Some(12_000_000));
     }
 
     #[test]
-    fn migrates_the_legacy_boost_switch_to_the_full_90_watt_profile() {
-        assert_eq!(normalize_charging_profile(8), 90);
+    fn migrates_legacy_rodin_charging_tiers_to_duchamp_67() {
+        for old in [8, 65, 85, 90] {
+            assert_eq!(normalize_charging_profile(old), 67);
+        }
         assert_eq!(normalize_charging_profile(33), 33);
         assert_eq!(normalize_charging_profile(-1), 0);
     }

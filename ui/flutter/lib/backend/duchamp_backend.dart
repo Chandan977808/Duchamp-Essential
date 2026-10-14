@@ -88,7 +88,7 @@ final class DuchampBackendSnapshot {
   final int dolby;
   final int performanceProfile;
 
-  bool get chargingBoost => chargingMode == 90;
+  bool get chargingBoost => chargingMode == 67;
   bool get busy => actionState == 1;
   double? get batteryTempC =>
       batteryTempTenthsC >= 0 ? batteryTempTenthsC / 10.0 : null;
@@ -515,11 +515,11 @@ final class DuchampBackend {
   }
 
   bool setChargingProfile(int watts) {
-    if (!const <int>{0, 25, 33, 65, 85, 90}.contains(watts)) return false;
+    if (!const <int>{0, 25, 33, 45, 55, 67}.contains(watts)) return false;
     return _queue(_setChargingModeNative(watts));
   }
 
-  bool setChargingBoost(bool enabled) => setChargingProfile(enabled ? 90 : 0);
+  bool setChargingBoost(bool enabled) => setChargingProfile(enabled ? 67 : 0);
 
   bool get chargingControlSupported => extendedValue(105) == 1;
   int get chargingFccUa => extendedValue(106);
