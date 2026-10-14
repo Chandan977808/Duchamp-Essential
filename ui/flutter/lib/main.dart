@@ -5192,7 +5192,7 @@ class SupportScreen extends StatelessWidget {
         _CommunityCard(
           title: 'GitHub Repository',
           subtitle: 'Star, fork, and inspect the open-source code',
-          badge: 'NEESCHAL-3',
+          badge: 'Saan',
           iconWidget: GithubIcon(color: colors.primary, size: 22),
           accent: colors.primary,
           onTap: () => _openLink(0),
@@ -5237,7 +5237,7 @@ class SupportScreen extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    'SaanOS',
+                    'Saan',
                     style: TextStyle(
                       fontSize: 11.5,
                       fontWeight: FontWeight.w800,
