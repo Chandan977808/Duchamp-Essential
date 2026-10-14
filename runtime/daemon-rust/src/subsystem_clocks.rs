@@ -123,10 +123,26 @@ fn journal(originals: &BTreeMap<Kind, Original>) -> Result<(), String> {
         .and_then(|f| f.sync_all())
         .map_err(|e| e.to_string())
 }
+fn floor_readback_matches(request: u64, actual: u64, levels: &[u64]) -> bool {
+    actual == request
+        || (actual == request / 1_000 * 1_000
+            && !levels.iter().any(|&hz| actual <= hz && hz < request))
+}
+fn ceiling_readback_matches(request: u64, actual: u64, levels: &[u64]) -> bool {
+    actual == request
+        || (actual == request.div_ceil(1_000) * 1_000
+            && !levels.iter().any(|&hz| request < hz && hz <= actual))
+}
+fn read_levels(root: &Path) -> Result<Vec<u64>, String> {
+    table(&fs::read_to_string(root.join("available_frequencies")).map_err(|e| e.to_string())?)
+}
 fn write_floor(root: &Path, hz: u64) -> Result<(), String> {
     fs::write(root.join("min_freq"), hz.to_string()).map_err(|e| e.to_string())?;
-    if number(root, "min_freq")? != hz {
-        return Err("driver did not accept the requested floor".into());
+    let actual = number(root, "min_freq")?;
+    // devfreq stores a minimum PM QoS request rounded down to whole kHz.
+    // Accept that representation only when it admits the same hardware OPPs.
+    if !floor_readback_matches(hz, actual, &read_levels(root)?) {
+        return Err(format!("driver did not accept the requested floor: requested={hz}, actual={actual}"));
     }
     Ok(())
 }
@@ -142,8 +158,15 @@ fn write_range(root: &Path, min: u64, max: u64) -> Result<(), String> {
         write_floor(root, min)?;
         fs::write(root.join("max_freq"), max.to_string()).map_err(|e| e.to_string())?;
     }
-    if number(root, "max_freq")? != max || number(root, "min_freq")? != min {
-        return Err("driver did not accept the exact frequency range".into());
+    let actual_min = number(root, "min_freq")?;
+    let actual_max = number(root, "max_freq")?;
+    let levels = read_levels(root)?;
+    // Maximum requests round up to kHz; the OPP table may clamp them back
+    // to the advertised clock. Other clamps or added OPPs still fail.
+    if !ceiling_readback_matches(max, actual_max, &levels)
+        || !floor_readback_matches(min, actual_min, &levels)
+    {
+        return Err(format!("driver did not accept the exact frequency range: requested={min}-{max}, actual={actual_min}-{actual_max}"));
     }
     Ok(())
 }
@@ -473,6 +496,26 @@ mod tests {
         assert!(Kind::parse("../voltage").is_err());
         assert!(!is_command("SET subsystem.voltage 9"));
     }
+    #[test]
+    fn fractional_ufs_readback_accepts_only_equivalent_khz_bounds() {
+        let levels = [273_000_000, 458_333_313];
+        assert!(floor_readback_matches(458_333_313, 458_333_000, &levels));
+        assert!(floor_readback_matches(458_333_313, 458_333_313, &levels));
+        assert!(ceiling_readback_matches(458_333_313, 458_334_000, &levels));
+        assert!(ceiling_readback_matches(458_333_313, 458_333_313, &levels));
+        assert!(!floor_readback_matches(458_333_313, 273_000_000, &levels));
+        assert!(!ceiling_readback_matches(458_333_313, 273_000_000, &levels));
+        assert!(!floor_readback_matches(458_333_313, 458_332_000, &levels));
+        assert!(!ceiling_readback_matches(458_333_313, 458_335_000, &levels));
+        // A rounding cell containing another OPP must never change the policy.
+        assert!(!floor_readback_matches(458_333_313, 458_333_000,
+            &[273_000_000, 458_333_100, 458_333_313]));
+        assert!(!ceiling_readback_matches(458_333_313, 458_334_000,
+            &[273_000_000, 458_333_313, 458_333_900]));
+        assert!(floor_readback_matches(273_000_000, 273_000_000, &levels));
+        assert!(ceiling_readback_matches(273_000_000, 273_000_000, &levels));
+    }
+
     #[test]
     fn supported_locks_restore_both_bounds_and_preserve_other_nodes() {
         let root = std::env::temp_dir().join(format!("duchamp-clock-test-{}", std::process::id()));
