@@ -2246,12 +2246,32 @@ fn touch_panel_code() -> i32 {
     let version = read_touch_firmware().unwrap_or_default();
     let detected = classify_touch_panel_version(&version);
     if detected != 0 {
-        detected
-    } else if Path::new("/sys/devices/platform/goodix_ts.0").exists() {
-        1
-    } else {
-        0
+        return detected;
     }
+
+    // Some non-THP FocalTech firmware reports only "xiaomi-touch version
+    // for non thp", so identify the panel from its SPI driver nodes.
+    if Path::new(
+        "/sys/devices/platform/soc/11012000.spi2/spi_master/spi2/spi2.0/fts_driver_info",
+    )
+    .exists()
+        || Path::new("/sys/bus/spi/drivers/focaltech_ts").exists()
+    {
+        return 2;
+    }
+
+    if Path::new("/sys/devices/platform/goodix_ts.0/switch_report_rate").exists()
+        || Path::new("/sys/devices/platform/goodix_ts.0").exists()
+    {
+        return 1;
+    }
+
+    0
+}
+
+fn touch_uses_non_thp_focaltech() -> bool {
+    touch_panel_code() == 2
+        && touch_firmware_is_non_thp(&read_touch_firmware().unwrap_or_default())
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -2455,6 +2475,12 @@ fn touch_profile_is_live(profile: i32) -> bool {
     let panel = touch_panel_code();
     let native_matches = if touch_uses_non_thp_goodix() {
         goodix_report_rate_hz() == Some(expected_rate)
+    } else if touch_uses_non_thp_focaltech() {
+        // This panel/ROM exposes no readable native-rate latch. Avoid falsely
+        // claiming independent hardware verification; keep the requested
+        // profile stable and verify only the daemon-owned output resampler.
+        TOUCH_STATE.load(Ordering::Acquire) == profile
+            && TOUCH_APPLY_ACK.load(Ordering::Acquire) == 1
     } else if vendor_binder::touch_available() {
         let thp_matches = locate_touch_thp_layout()
             .and_then(|layout| read_touch_thp_rate(layout, layout.current_rate_addr))
@@ -2577,6 +2603,7 @@ fn apply_touch_hal_profile(profile: i32) -> Result<(), String> {
     }
 }
 
+
 fn apply_touch_driver_fallback(profile: i32, panel: i32) -> Result<(), String> {
     // The generic HAL is the all-panel route. This fallback keeps 240/480
     // control available on Goodix-based ported ROMs that omit the HAL service.
@@ -2626,11 +2653,68 @@ fn set_touch_profile(profile: i32) -> Result<(), String> {
     apply_touch_profile_locked(profile)
 }
 
+fn apply_non_thp_focaltech_profile(profile: i32) -> Result<(), String> {
+    if touch_profile_locked_rate(profile).is_none() {
+        TOUCH_APPLY_ACK.store(0, Ordering::Release);
+        return Err("invalid non-THP FocalTech touch profile".into());
+    }
+    // 240 Hz: leave the current hardware rate unchanged.
+    if profile == 1 {
+        TOUCH_APPLY_ACK.store(1, Ordering::Release);
+        return Ok(());
+    }
+
+    if !vendor_binder::touch_available() {
+        TOUCH_APPLY_ACK.store(0, Ordering::Release);
+        return Err("FocalTech control requires Xiaomi TouchFeature HAL".into());
+    }
+
+    TOUCH_APPLY_ACK.store(0, Ordering::Release);
+    service_control::remember("touch.hal", serde_json::json!(true))?;
+
+    // This ROM has no libtouchreport_hal.so timing block and no known writable
+    // FocalTech report-rate sysfs node. Configure Xiaomi's TouchFeature HAL
+    // without trying to read/write /proc/<pid>/mem.
+    touch_resampler::set_target_hz(0)?;
+    let vendor_profile = if profile == 3 { 2 } else { profile };
+    if let Err(error) = apply_touch_hal_profile(vendor_profile) {
+        TOUCH_APPLY_ACK.store(0, Ordering::Release);
+        return Err(error);
+    }
+
+    if profile == 3 {
+        if let Err(error) = touch_resampler::set_non_thp_target_hz(1000) {
+            let _ = touch_resampler::set_target_hz(0);
+            TOUCH_APPLY_ACK.store(0, Ordering::Release);
+            return Err(error);
+        }
+    }
+
+    if let Err(error) = mutate_persisted_state(|state| state.touch = profile) {
+        let _ = touch_resampler::set_target_hz(0);
+        TOUCH_APPLY_ACK.store(0, Ordering::Release);
+        return Err(error);
+    }
+
+    let (sustained_rate, instant_rate) = touch_profile_rates(profile);
+    let _ = service_control::write("/proc/touch_boost/enable", "1");
+    TOUCH_STATE.store(profile, Ordering::Release);
+    TOUCH_SUSTAINED_RATE.store(sustained_rate, Ordering::Release);
+    TOUCH_INSTANT_RATE.store(instant_rate, Ordering::Release);
+    TOUCH_PANEL.store(2, Ordering::Release);
+    TOUCH_CONTROL_PATH.store(4, Ordering::Release);
+    TOUCH_APPLY_ACK.store(1, Ordering::Release);
+    Ok(())
+}
+
 fn apply_touch_profile_locked(profile: i32) -> Result<(), String> {
     // Non-THP firmware has no THP timing block. Use its readable driver latch
     // even when the Xiaomi HAL exists; never open another process's memory.
     if touch_uses_non_thp_goodix() {
         return apply_non_thp_goodix_profile(profile);
+    }
+    if touch_uses_non_thp_focaltech() {
+        return apply_non_thp_focaltech_profile(profile);
     }
     service_control::remember("touch.hal", serde_json::json!(true))?;
 
@@ -2761,7 +2845,9 @@ fn release_touch_control() -> Result<(), String> {
     }
     if let Some(rate) = service_control::original("touch.thp_rate")
         .and_then(|v| v.as_u64())
-        .filter(|_| !touch_uses_non_thp_goodix())
+        .filter(|_| {
+            !touch_uses_non_thp_goodix() && !touch_uses_non_thp_focaltech()
+        })
     {
         let layout = locate_touch_thp_layout()?;
         let mut memory = OpenOptions::new()
