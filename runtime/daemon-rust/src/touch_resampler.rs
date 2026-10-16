@@ -12,6 +12,7 @@ static MEASUREMENT_ACTIVE: AtomicI32 = AtomicI32::new(0);
 static ATTACHMENT_PATH: AtomicI32 = AtomicI32::new(0);
 static PHYSICAL_FRAMES: AtomicU64 = AtomicU64::new(0);
 static INJECTED_FRAMES: AtomicU64 = AtomicU64::new(0);
+static MISSED_DEADLINES: AtomicU64 = AtomicU64::new(0);
 static START: Once = Once::new();
 
 pub fn start_background() {
@@ -493,16 +494,21 @@ mod android {
             let mut x = state.x;
             let mut y = state.y;
             let source_delta = state.point_time_ns - state.previous_time_ns;
-            let mut future_delta = now_ns - state.point_time_ns;
-            if source_delta > 0 && source_delta < 50_000_000 && future_delta > 0 {
-                future_delta = future_delta.min(source_delta);
-                x = x.saturating_add(
-                    ((state.x - state.previous_x) as i64 * future_delta / source_delta) as i32,
-                );
-                y = y.saturating_add(
-                    ((state.y - state.previous_y) as i64 * future_delta / source_delta) as i32,
-                );
-            }
+            let future_delta = now_ns - state.point_time_ns;
+            if source_delta > 0
+    && source_delta < 50_000_000
+    && future_delta > 0
+{
+    let prediction_ns = future_delta.min(500_000);
+
+    x = x.saturating_add(
+        ((state.x - state.previous_x) as i64 * prediction_ns / source_delta) as i32,
+    );
+
+    y = y.saturating_add(
+        ((state.y - state.previous_y) as i64 * prediction_ns / source_delta) as i32,
+    );
+}
             x = x.clamp(x_range.0, x_range.1);
             y = y.clamp(y_range.0, y_range.1);
             changed |= x != state.x || y != state.y;
@@ -713,6 +719,7 @@ mod android {
                 session = false;
             }
             if session && now.saturating_sub(next_tick) > 2_000_000 {
+            crate::touch_resampler::MISSED_DEADLINES.fetch_add(1, Ordering::Relaxed);
                 // Skip missed deadlines instead of emitting a catch-up burst.
                 ideal_count = ((now - session_start) as u64 * target as u64 / 1_000_000_000) + 2;
                 next_tick = session_start + ((ideal_count - 1) * 1_000_000_000u64 / target as u64) as i64;
