@@ -217,6 +217,11 @@ ui/flutter/             Flutter AOT interface
 - [Flutter runtime pin](docs/FLUTTER_RUNTIME.md)
 - [Commit convention](docs/COMMITS.md)
 
+## Support
+
+- Questions, bug reports and updates: [Telegram support group](https://t.me/saan_os_discussion)
+- If you like Ruyi Kernel, you can support its development: **[Donate](https://t.me/saan_os/80)**
+
 ## License
 
 Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE).
