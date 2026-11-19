@@ -31,6 +31,8 @@ import 'surface_lines.dart';
 
 part 'system_colors.dart';
 part 'per_app_controls.dart';
+part 'global_refresh.dart';
+part 'battery_health.dart';
 part 'easter_eggs.dart';
 part 'aurora_drift.dart';
 part 'subsystem_clocks.dart';
@@ -63,6 +65,7 @@ enum DuchampScreen {
   support,
   settings,
   charging,
+  batteryHealth,
   touchBoost,
   displayStudio,
   cpuControl,
@@ -73,6 +76,7 @@ enum DuchampScreen {
   maliGpu,
   systemColors,
   perAppControls,
+  globalRefresh,
   subsystemClocks,
 }
 
@@ -89,6 +93,8 @@ extension DuchampScreenName on DuchampScreen {
         return 'Settings';
       case DuchampScreen.charging:
         return 'Charging';
+      case DuchampScreen.batteryHealth:
+        return 'Battery Health';
       case DuchampScreen.touchBoost:
         return 'Touch Response';
       case DuchampScreen.displayStudio:
@@ -109,6 +115,8 @@ extension DuchampScreenName on DuchampScreen {
         return 'System Colors';
       case DuchampScreen.perAppControls:
         return 'Per-App Controls';
+      case DuchampScreen.globalRefresh:
+        return 'Global Refresh Rate';
       case DuchampScreen.subsystemClocks:
         return 'Memory DVFS & UFS';
     }
@@ -818,6 +826,8 @@ class _DuchampShellState extends State<DuchampShell>
           onBack: _back,
           focusRequest: _bypassFocusRevision,
         );
+      case DuchampScreen.batteryHealth:
+        return BatteryHealthScreen(onBack: _back);
       case DuchampScreen.touchBoost:
         return TouchBoostScreen(onBack: _back);
       case DuchampScreen.displayStudio:
@@ -838,6 +848,8 @@ class _DuchampShellState extends State<DuchampShell>
         return SystemColorsScreen(onBack: _back);
       case DuchampScreen.perAppControls:
         return PerAppControlsScreen(onBack: _back);
+      case DuchampScreen.globalRefresh:
+        return GlobalRefreshScreen(onBack: _back);
       case DuchampScreen.subsystemClocks:
         return SubsystemClocksScreen(onBack: _back);
       default:
@@ -4506,6 +4518,14 @@ class HubsScreen extends StatelessWidget {
                 child: Column(
                   children: <Widget>[
                     _HubControlRow(
+                      title: 'Global Refresh Rate',
+                      subtitle: 'Set the refresh rate for the whole system UI',
+                      icon: Icons.screen_rotation_rounded,
+                      accent: const Color(0xFF67C2FF),
+                      onTap: () => onOpen(DuchampScreen.globalRefresh),
+                    ),
+                    const _HubControlDivider(),
+                    _HubControlRow(
                       title: 'Touch Response',
                       subtitle: '$touchMode · Sampling and instant boost',
                       icon: Icons.swipe_rounded,
@@ -4556,6 +4576,14 @@ class HubsScreen extends StatelessWidget {
                       icon: Icons.battery_charging_full_rounded,
                       accent: const Color(0xFF41C98A),
                       onTap: () => onOpen(DuchampScreen.charging),
+                    ),
+                    const _HubControlDivider(),
+                    _HubControlRow(
+                      title: 'Battery Health',
+                      subtitle: 'Battery condition and live electrical readings',
+                      icon: Icons.health_and_safety_rounded,
+                      accent: const Color(0xFF41C98A),
+                      onTap: () => onOpen(DuchampScreen.batteryHealth),
                     ),
                     const _HubControlDivider(),
                     _HubControlRow(
@@ -5963,24 +5991,6 @@ class _ChargingBatteryCard extends StatelessWidget {
     }
   }
 
-  String _health() {
-    switch (snapshot.batteryHealth) {
-      case 1:
-        return 'Good health';
-      case 2:
-        return 'Overheat';
-      case 3:
-        return 'Dead';
-      case 4:
-        return 'Over voltage';
-      case 5:
-        return 'Cold';
-      case 0:
-        return 'Unknown';
-      default:
-        return 'Unavailable';
-    }
-  }
 
   Color _tempColor() {
     final double? t = snapshot.batteryTempC;
@@ -6088,7 +6098,7 @@ class _ChargingBatteryCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${_status()} · ${_health()}',
+                      _status(),
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
