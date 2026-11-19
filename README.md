@@ -66,6 +66,9 @@ installer and are not supported by this module.
   recovered to originals after daemon restart or reboot.
 - Bypass Charging Quick Settings/Control Center tile with direct access to
   Charging Control on long-press.
+  - Dedicated Battery Health section for viewing battery health information.
+- Global refresh-rate controls for managing the device's display refresh rate.
+- Redesigned Duchamp Essential app logo and updated application branding.
 
 ## Screenshots
 
