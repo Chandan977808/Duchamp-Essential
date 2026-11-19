@@ -1,7 +1,7 @@
 name: duchamp_essential_ui
 description: Duchamp Essential zero-DEX Flutter AOT interface.
 publish_to: "none"
-version: 1.18.5+11805
+version: 2.0.0+20000
 
 environment:
   sdk: ">=3.12.0 <4.0.0"
