@@ -2,6 +2,16 @@
 
 All notable changes are documented here.
 
+## 2.0.0
+
+Released on 19 November 2026
+
+### Added
+
+- Battery Health: Added a dedicated Battery Health section with battery condition information and monitoring features.
+- Global Refresh Rate: Added global refresh-rate controls to manage the device's display refresh rate.
+- New App Logo: Introduced a redesigned Duchamp Essential app logo and updated app branding.
+
 ## 1.18.5
 
 Codename: Aurora.
