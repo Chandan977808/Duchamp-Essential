@@ -428,15 +428,18 @@ fn physical_mode(raw: &str, hz: u16) -> Result<(i32, i32), String> {
     Err("supported physical display mode unavailable".into())
 }
 fn apply_refresh(hz: u16) -> Result<(), String> {
-    let user = current_user()?;
     let saved = originals()
         .lock()
         .map_err(|_| "originals lock poisoned")?
         .get("refresh")
         .cloned()
         .ok_or("refresh original missing")?;
+    apply_refresh_from_saved(hz, &saved.live)
+}
+fn apply_refresh_from_saved(hz: u16, live: &Value) -> Result<(), String> {
+    let user = live["user"].as_u64().ok_or("missing refresh user")? as u32;
     if hz == 0 {
-        return restore_refresh(&saved.live);
+        return restore_refresh(live);
     }
     let display = cli(
         "/system/bin/cmd",
@@ -472,7 +475,7 @@ fn apply_refresh(hz: u16) -> Result<(), String> {
     // Some ROMs vote from their own refresh settings instead of AOSP bounds.
     // Only touch existing, numeric refresh controls captured in the journal;
     // never manufacture vendor settings on an unrelated ROM.
-    if let Some(entries) = saved.live["vendor"].as_array() {
+    if let Some(entries) = live["vendor"].as_array() {
         for entry in entries {
             let table = entry["table"].as_str().ok_or("missing refresh table")?;
             let key = entry["key"].as_str().ok_or("missing refresh key")?;
@@ -757,7 +760,10 @@ fn status(r: &Runtime) -> Value {
     json!({"config":r.config.json(),"status":state,"owner":owner,"foreground":foreground,"controls":controls,"error":r.config_error.as_ref().or(r.error.as_ref()),"watching":r.watching,"serviceEnabled":service_control::enabled()})
 }
 pub(super) fn is_command(cmd: &str) -> bool {
-    cmd == "GET app.controls"
+    cmd == "GET battery.health"
+        || cmd == "GET global.refresh"
+        || cmd.starts_with("SET global.refresh ")
+        || cmd == "GET app.controls"
         || cmd == "GET app.capabilities"
         || cmd == "GET app.list"
         || cmd.starts_with("SET app.profile ")
@@ -766,6 +772,72 @@ pub(super) fn is_command(cmd: &str) -> bool {
         || cmd == "ACTION app.reset_all"
 }
 pub(super) fn command(cmd: &str) -> Result<Value, String> {
+    if cmd == "GET battery.health" {
+        let read_first = |paths: &[&str]| -> String {
+            paths.iter().find_map(|path| read_trimmed(*path).ok().filter(|v| !v.is_empty() && v != "NA")).unwrap_or_else(|| "NA".into())
+        };
+        return Ok(json!({
+            "chargeLevel": read_first(&["/sys/class/power_supply/battery/capacity"]),
+            "chargeFull": read_first(&["/sys/class/power_supply/bms/charge_full"]),
+            "chargeFullDesign": read_first(&["/sys/class/power_supply/bms/charge_full_design"]),
+            "cycleCount": read_first(&["/sys/class/power_supply/battery/cycle_count", "/sys/class/power_supply/bms/cycle_count"]),
+            "voltageNow": read_first(&["/sys/class/power_supply/battery/voltage_now"]),
+            "currentNow": read_first(&["/sys/class/power_supply/battery/current_now"]),
+            "temperature": read_first(&["/sys/class/power_supply/battery/temp"]),
+            "health": read_first(&["/sys/class/power_supply/battery/health"]),
+            "status": read_first(&["/sys/class/power_supply/battery/status"])
+        }));
+    }
+    if cmd == "GET global.refresh" {
+        let supported = capabilities()?.refresh;
+        let user = current_user()?;
+        let peak = settings(user, "get", "peak_refresh_rate", None)
+            .ok().and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0);
+        let preferred = cli("/system/bin/cmd", &["display", "get-user-preferred-display-mode", "0"])
+            .ok().and_then(|raw| preferred_mode(&raw).ok()).map(|v| v.2).unwrap_or(0.0);
+        let explicit = state_dir().join("global-refresh.json").exists();
+        let current = if explicit {
+            [60u16, 90, 120].into_iter()
+                .find(|hz| (peak - *hz as f64).abs() < 0.1 || (preferred - *hz as f64).abs() < 0.1)
+                .unwrap_or(0)
+        } else { 0 };
+        return Ok(json!({"current":current,"supported":supported,"global":true}));
+    }
+    if let Some(raw) = cmd.strip_prefix("SET global.refresh ") {
+        if !RECOVERY_READY.load(Ordering::Acquire) {
+            return Err("Global controls are waiting for recovery; no display override was applied".into());
+        }
+        if !service_control::enabled() {
+            return Err("Duchamp Essential is disabled; enable it in Settings first".into());
+        }
+        let hz: u16 = raw.parse().map_err(|_| "invalid refresh rate")?;
+        if !matches!(hz, 0 | 60 | 90 | 120) {
+            return Err("refresh rate must be Auto, 60, 90 or 120 Hz".into());
+        }
+        if originals().lock().map_err(|_| "originals lock poisoned")?.contains_key("refresh") {
+            return Err("Refresh rate is temporarily owned by an active Per-App Controls profile; close that app or disable its profile first".into());
+        }
+        let path = state_dir().join("global-refresh.json");
+        if hz != 0 && !capabilities()?.refresh.contains(&hz) {
+            return Err(format!("{hz} Hz is not supported by the internal display"));
+        }
+        let saved = if path.exists() {
+            serde_json::from_slice::<Value>(&fs::read(&path).map_err(|e| e.to_string())?)
+                .map_err(|e| format!("invalid global refresh recovery file: {e}"))?
+        } else {
+            let mut adapter = Adapter::new();
+            let captured = adapter.capture(&Control::Refresh)?;
+            serde_json::to_value(captured.live).map_err(|e| e.to_string())?
+        };
+        // Write the recovery baseline before touching display settings. If an
+        // OEM setting rejects a write halfway through, Auto can still restore it.
+        if hz != 0 { atomic_json(&path, &saved)?; }
+        apply_refresh_from_saved(hz, &saved)?;
+        if hz == 0 && path.exists() {
+            fs::remove_file(&path).map_err(|e| e.to_string())?;
+        }
+        return Ok(json!({"current":hz,"supported":capabilities()?.refresh,"global":true}));
+    }
     if cmd == "GET app.capabilities" {
         return capabilities_json();
     }
