@@ -32,7 +32,7 @@ dependencies = [
 
 [[package]]
 name = "duchamp-essential-daemon"
-version = "1.18.5"
+version = "2.0.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -40,7 +40,7 @@ dependencies = [
 
 [[package]]
 name = "duchamp-essential-host"
-version = "1.18.5"
+version = "2.0.0"
 dependencies = [
  "jni",
  "serde_json",
