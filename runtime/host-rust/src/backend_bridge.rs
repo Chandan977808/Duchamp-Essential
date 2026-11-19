@@ -489,7 +489,10 @@ pub unsafe extern "C" fn duchamp_backend_app_controls_exchange(
     let Ok(command) = std::str::from_utf8(bytes) else {
         return -1;
     };
-    if !(command == "GET app.controls"
+    if !(command == "GET battery.health"
+        || command == "GET global.refresh"
+        || command.starts_with("SET global.refresh ")
+        || command == "GET app.controls"
         || command == "GET app.capabilities"
         || command == "GET app.list"
         || command.starts_with("SET app.profile ")
