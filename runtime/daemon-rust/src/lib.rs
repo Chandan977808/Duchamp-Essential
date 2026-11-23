@@ -13,6 +13,7 @@ use std::time::{Duration, Instant};
 
 mod app_controls;
 mod app_runtime;
+mod game_monitor;
 mod bypass_policy;
 mod service_control;
 mod subsystem_clocks;
@@ -367,6 +368,7 @@ static DISPLAY_COLOR_STATE: AtomicI32 = AtomicI32::new(-1);
 static DISPLAY_TEMP_STATE: AtomicI32 = AtomicI32::new(-1);
 static DISPLAY_SUNLIGHT_STATE: AtomicI32 = AtomicI32::new(-1);
 static DISPLAY_SILKY_STATE: AtomicI32 = AtomicI32::new(-1);
+const DUCHAMP_BACKLIGHT_NODE: &str = "/sys/devices/platform/soc/soc:mtk-leds/leds/lcd-backlight/brightness";
 static DISPLAY_VIDEO_STATE: AtomicI32 = AtomicI32::new(-1);
 static DISPLAY_DOLBY_STATE: AtomicI32 = AtomicI32::new(-1);
 static PERFORMANCE_STATE: AtomicI32 = AtomicI32::new(-1);
@@ -2628,8 +2630,8 @@ fn apply_touch_driver_fallback(profile: i32, panel: i32) -> Result<(), String> {
     .map_err(|e| format!("Goodix report-rate fallback: {e}"))?;
 
     let expected = if profile == 1 { 240 } else { 480 };
-    for _ in 0..4 {
-        std::thread::sleep(Duration::from_millis(20));
+    for attempt in 0..=4 {
+        if attempt > 0 { std::thread::sleep(Duration::from_millis(20)); }
         if goodix_report_rate_hz() == Some(expected) {
             return Ok(());
         }
@@ -2736,13 +2738,13 @@ fn apply_touch_profile_locked(profile: i32) -> Result<(), String> {
 
         if let Some((layout, expected_rate)) = layout_and_expected_rate {
             let mut actual = 0u16;
-            for attempt in 0..3 {
-                std::thread::sleep(Duration::from_millis(25));
+            for attempt in 0..=3 {
+                if attempt > 0 { std::thread::sleep(Duration::from_millis(25)); }
                 actual = read_touch_thp_rate(layout, layout.current_rate_addr)?;
                 if actual == expected_rate {
                     break;
                 }
-                if attempt < 2 {
+                if (1..3).contains(&attempt) {
                     apply_touch_hal_profile(vendor_profile)?;
                 }
             }
@@ -2975,6 +2977,78 @@ fn set_display_toggle(case_id: i32, enabled: bool, state: &AtomicI32) -> Result<
     Ok(())
 }
 
+// Duchamp's Silky toggle is implemented as a guarded backlight-node override.
+// Feature 57 on some vendor builds leaves the panel backlight at zero after OFF.
+fn set_silky(enabled: bool) -> Result<(), String> {
+    let _guard = display_mode_apply_lock()
+        .lock()
+        .map_err(|_| "display mode lock poisoned")?;
+    let node = Path::new(DUCHAMP_BACKLIGHT_NODE);
+
+    if enabled {
+        let already_enabled = persisted_state()
+            .lock()
+            .map_err(|_| "persisted state lock poisoned")?
+            .silky == 1;
+        if already_enabled {
+            let current = fs::read_to_string(node)
+                .map_err(|e| format!("read backlight node: {e}"))?;
+            if current.trim() == "1" {
+                DISPLAY_SILKY_STATE.store(1, Ordering::Release);
+                DISPLAY_APPLY_ACK.store(1, Ordering::Release);
+                return Ok(());
+            }
+        }
+
+        let current = fs::read_to_string(node)
+            .map_err(|e| format!("read backlight node: {e}"))?
+            .trim()
+            .parse::<i32>()
+            .map_err(|_| "backlight node returned a non-numeric value".to_string())?;
+        if current <= 1 {
+            return Err(format!("refusing Silky enable: current backlight value is {current}"));
+        }
+        // Persist the original value before changing the hardware.
+        mutate_persisted_state(|s| {
+            s.silky_brightness_prev = current;
+            s.silky = 1;
+        })?;
+        if let Err(e) = fs::write(node, "1\n") {
+            let _ = mutate_persisted_state(|s| { s.silky = 0; s.silky_brightness_prev = -1; });
+            DISPLAY_APPLY_ACK.store(0, Ordering::Release);
+            return Err(format!("write Silky backlight value: {e}"));
+        }
+    } else {
+        let previous = persisted_state()
+            .lock()
+            .map_err(|_| "persisted state lock poisoned")?
+            .silky_brightness_prev;
+        if previous < 0 {
+            // No captured stock value: do not write zero or guess a brightness.
+            return Err("cannot restore Silky: saved backlight value is unavailable".into());
+        }
+        fs::write(node, format!("{previous}\n"))
+            .map_err(|e| format!("restore backlight brightness {previous}: {e}"))?;
+        let actual = fs::read_to_string(node)
+            .map_err(|e| format!("verify restored backlight: {e}"))?
+            .trim()
+            .parse::<i32>()
+            .map_err(|_| "restored backlight node returned a non-numeric value".to_string())?;
+        if actual != previous {
+            DISPLAY_APPLY_ACK.store(0, Ordering::Release);
+            return Err(format!("backlight restore verification failed: expected {previous}, got {actual}"));
+        }
+        mutate_persisted_state(|s| {
+            s.silky = 0;
+            s.silky_brightness_prev = -1;
+        })?;
+    }
+    let val = if enabled { 1 } else { 0 };
+    DISPLAY_SILKY_STATE.store(val, Ordering::Release);
+    DISPLAY_APPLY_ACK.store(1, Ordering::Release);
+    Ok(())
+}
+
 const DEFAULT_STATE_DIR: &str = "/data/adb/duchamp-essential";
 const STATE_DIR_ENV: &str = "DUCHAMP_STATE_DIR";
 
@@ -3022,6 +3096,7 @@ struct PersistedState {
     display_density: i32,
     sunlight: i32,
     silky: i32,
+    silky_brightness_prev: i32,
     video: i32,
     dolby: i32,
     expert_gamut: i32,
@@ -3068,6 +3143,7 @@ impl Default for PersistedState {
             display_density: -1,
             sunlight: -1,
             silky: -1,
+            silky_brightness_prev: -1,
             video: -1,
             dolby: -1,
             expert_gamut: 1,
@@ -3272,6 +3348,11 @@ fn parse_persisted_state(raw: &str) -> PersistedState {
             "silky" => {
                 if let Some(v) = int_value() {
                     state.silky = v;
+                }
+            }
+            "silky_brightness_prev" => {
+                if let Some(v) = int_value() {
+                    state.silky_brightness_prev = v;
                 }
             }
             "video" => {
@@ -3495,6 +3576,7 @@ fn save_persisted_state(state: &PersistedState) -> Result<(), String> {
     out.push_str(&format!("display_density={}\n", state.display_density));
     out.push_str(&format!("sunlight={}\n", state.sunlight));
     out.push_str(&format!("silky={}\n", state.silky));
+    out.push_str(&format!("silky_brightness_prev={}\n", state.silky_brightness_prev));
     out.push_str(&format!("video={}\n", state.video));
     out.push_str(&format!("dolby={}\n", state.dolby));
     out.push_str(&format!("expert_gamut={}\n", state.expert_gamut));
@@ -4385,9 +4467,17 @@ fn restore_persisted_state() {
     // after the profile restore below replaces the in-memory state.
     state.brightness_prev = -1;
 
-    if matches!(state.silky, 0 | 1) {
-        let _ = set_display_toggle(57, state.silky == 1, &DISPLAY_SILKY_STATE);
+    // Do not reapply a stale pre-reboot Silky brightness override. Android owns
+    // the new session's brightness; start with Silky disabled and no old backup.
+    if state.silky == 1 {
+        state.silky = 0;
+        state.silky_brightness_prev = -1;
+        let _ = mutate_persisted_state(|s| {
+            s.silky = 0;
+            s.silky_brightness_prev = -1;
+        });
     }
+    DISPLAY_SILKY_STATE.store(0, Ordering::Release);
 
     if matches!(state.video, 0 | 1) {
         let _ = set_display_toggle(27, state.video == 1, &DISPLAY_VIDEO_STATE);
@@ -6421,6 +6511,9 @@ fn restore_released_controls() -> Result<(), String> {
         }
         run("CPU thermal mode", restore_cpu_thermal_mode());
     }
+    // Silky uses the backlight node directly, so restore it independently of
+    // whether any vendor display-HAL feature was claimed by this daemon.
+    run("Silky brightness restore", set_silky(false));
     if service_control::original("display.hal").is_some() {
         // The vendor HAL provides setters but no reliable cross-ROM getters.
         // Use its neutral/default modes rather than inventing a captured value.
@@ -6430,7 +6523,6 @@ fn restore_released_controls() -> Result<(), String> {
             run("display temperature", set_display_temp(2));
             run("sunlight", set_sunlight(false));
             for (case, state) in [
-                (57, &DISPLAY_SILKY_STATE),
                 (27, &DISPLAY_VIDEO_STATE),
                 (44, &DISPLAY_DOLBY_STATE),
             ] {
@@ -6638,6 +6730,15 @@ fn transition_service(cmd: &str) -> Result<(), String> {
 
 pub fn handle_command(line: &str) -> String {
     let cmd = line.trim();
+    if cmd == "GET game.focus" {
+        return match app_runtime::foreground() {
+            Ok(app) => format!("OK {}", app.map_or_else(|| "-".into(), |a| a.package)),
+            Err(e) => format!("ERR {e}"),
+        };
+    }
+    if let Some(package) = cmd.strip_prefix("GET game.monitor ") {
+        return game_monitor::sample(package);
+    }
     if subsystem_clocks::is_command(cmd) {
         let _gate = match service_control::GATE.write() {
             Ok(gate) => gate,
@@ -6845,8 +6946,8 @@ fn handle_enabled_command(line: &str) -> String {
         }
     } else if let Some(arg) = cmd.strip_prefix("SET display.silky ") {
         match arg.trim() {
-            "1" => set_display_toggle(57, true, &DISPLAY_SILKY_STATE),
-            "0" => set_display_toggle(57, false, &DISPLAY_SILKY_STATE),
+            "1" => set_silky(true),
+            "0" => set_silky(false),
             _ => Err("invalid silky state".into()),
         }
     } else if let Some(arg) = cmd.strip_prefix("SET display.video ") {
@@ -7206,7 +7307,7 @@ mod tests {
     }
 
     #[test]
-    fn parses_duchamp_gpu_table_without_rodin_index_assumptions() {
+    fn parses_duchamp_gpu_table_without_Duchamp_index_assumptions() {
         let raw = "1400000000 1383000000 1367000000 1351000000 1335000000 1319000000 1303000000 1287000000 1271000000 1255000000 1238000000 1222000000 1206000000 1190000000 1174000000 1158000000 1142000000 1126000000 1110000000 1093000000 1077000000 1061000000 1045000000 1029000000 1013000000 997000000 981000000 965000000 948000000 932000000 916000000 900000000 884000000 868000000 852000000 836000000 820000000 800000000 780000000 760000000 740000000 720000000 701000000 681000000 661000000 641000000 621000000 601000000 582000000 562000000 542000000 522000000 502000000 483000000 463000000 443000000 423000000 403000000 383000000 364000000 344000000 324000000 304000000 284000000 265000000";
         let table = super::parse_gpu_opp_frequency_table(raw).unwrap();
         assert_eq!(table.len(), 65);
@@ -7308,7 +7409,7 @@ com.saan.duchamp.essential 10228 0 /data/user/0/com.saan.duchamp.essential defau
     }
 
     #[test]
-    fn migrates_legacy_rodin_charging_tiers_to_duchamp_67() {
+    fn migrates_legacy_Duchamp_charging_tiers_to_duchamp_67() {
         for old in [8, 65, 85, 90] {
             assert_eq!(normalize_charging_profile(old), 67);
         }

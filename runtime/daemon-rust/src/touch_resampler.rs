@@ -108,7 +108,10 @@ fn worker() {
         let result = android::run(target);
         #[cfg(not(target_os = "android"))]
         let result: Result<(), i32> = Err(-100);
-
+        
+        MEASUREMENT_ACTIVE.store(0, Ordering::Release);
+        MEASURED_HZ_X10.store(0, Ordering::Release);
+        SOURCE_MEASURED_HZ_X10.store(0, Ordering::Release);
         READY_HZ.store(0, Ordering::Release);
         if let Err(code) = result {
             LAST_ERROR.store(code, Ordering::Release);
@@ -121,7 +124,7 @@ fn worker() {
     }
 }
 
-#[cfg(any(target_os = "android", test))]
+#[cfg(any(target_os = "android", all(test, target_os = "linux")))]
 #[cfg_attr(not(target_os = "android"), allow(dead_code))]
 mod android {
     use super::{
@@ -248,10 +251,10 @@ mod android {
         now.sec.saturating_mul(1_000_000_000) + now.nsec
     }
 
-    fn use_monotonic_event_clock(fd: RawFd) {
+    fn use_monotonic_event_clock(fd: RawFd) -> bool {
         let clock_id = CLOCK_MONOTONIC;
         unsafe {
-            ioctl(fd, EVIOCSCLOCKID, &clock_id);
+            ioctl(fd, EVIOCSCLOCKID, &clock_id) == 0
         }
     }
 
@@ -444,7 +447,8 @@ mod android {
         let mut payload = events
             .iter()
             .rev()
-            .skip_while(|event| event.event_type == EV_SYN && event.code == SYN_REPORT);
+            .skip_while(|event| event.event_type == EV_SYN && event.code == SYN_REPORT)
+            .skip_while(|event| event.event_type == EV_ABS && event.code == ABS_MT_SLOT);
         let Some(last) = payload.next() else {
             return false;
         };
@@ -467,6 +471,7 @@ mod android {
     fn emit_interpolated(
         output: &mut File,
         slots: &[SlotState; 10],
+        current_slot: usize,
         now_ns: i64,
         x_range: (i32, i32),
         y_range: (i32, i32),
@@ -495,10 +500,7 @@ mod android {
             let mut y = state.y;
             let source_delta = state.point_time_ns - state.previous_time_ns;
             let future_delta = now_ns - state.point_time_ns;
-            if source_delta > 0
-    && source_delta < 50_000_000
-    && future_delta > 0
-{
+            if source_delta > 0 && source_delta < 50_000_000 && future_delta > 0 && future_delta <= source_delta {
     let prediction_ns = future_delta.min(500_000);
 
     x = x.saturating_add(
@@ -528,11 +530,32 @@ mod android {
         };
         push(EV_ABS, marker_code, temporary_marker);
         push(EV_ABS, marker_code, original_marker);
+        push(EV_ABS, ABS_MT_SLOT, current_slot as i32);
         push(EV_SYN, SYN_REPORT, 0);
 
         if !changed { return Ok(false); }
         output.write_all(events_as_bytes(&events)).map_err(|_| -14)?;
         Ok(true)
+    }
+    
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        #[test]
+        fn synthesized_frame_restores_native_slot_after_marker() {
+            let mut slots = [SlotState::default(); 10];
+            slots[1] = SlotState { active:true, x:10, y:20, point_time_ns:20, previous_time_ns:10,
+                previous_x:5, previous_y:20, ..SlotState::default() };
+            let path = std::env::temp_dir().join(format!("duchamp-touch-frame-{}", std::process::id()));
+            let mut output = File::create(&path).unwrap();
+            assert!(emit_interpolated(&mut output, &slots, 0, 25, (0,100), (0,100), ABS_MT_WIDTH_MAJOR, (0,10)));
+            let data = fs::read(&path).unwrap();
+            fs::remove_file(path).unwrap();
+            let events: Vec<_> = parse_events(&data).collect();
+            assert!(frame_is_injected(&events, ABS_MT_WIDTH_MAJOR));
+            assert_eq!((events[events.len()-2].code,events[events.len()-2].value),(ABS_MT_SLOT,0));
+            assert_eq!(events.iter().find(|e|e.code==ABS_MT_POSITION_Y).unwrap().value,20);
+        }
     }
 
     fn parse_events(bytes: &[u8]) -> impl Iterator<Item = InputEvent> + '_ {
@@ -595,7 +618,7 @@ mod android {
             .custom_flags(O_NONBLOCK | O_CLOEXEC)
             .open(&path)
             .map_err(|_| -6)?;
-        use_monotonic_event_clock(input.as_raw_fd());
+        let event_clock = use_monotonic_event_clock(input.as_raw_fd());
         let x_range = axis_range(input.as_raw_fd(), ABS_MT_POSITION_X);
         let y_range = axis_range(input.as_raw_fd(), ABS_MT_POSITION_Y);
         let marker_code = marker_axis(input.as_raw_fd()).ok_or(-13)?;
@@ -619,6 +642,9 @@ mod android {
         let mut next_tick = 0i64;
         let mut last_source_frame = 0i64;
         let mut service_check = monotonic_ns() + 500_000_000;
+        let mut window_start = 0;
+        let mut physical = 0_i64;
+        let mut observed_extra = 0_i64;
         let mut read_buffer = [0u8; size_of::<InputEvent>() * 64];
 
         LAST_ERROR.store(0, Ordering::Release);
@@ -641,6 +667,10 @@ mod android {
                 };
 
                 for event in parse_events(&read_buffer[..bytes]) {
+                if event.event_type == EV_SYN && event.code == 3 {
+                        // evdev lost part of the contact stream. Reattach before predicting.
+                        return Err(-14);
+                    }
                     // Dropped input state cannot safely be extrapolated. Close
                     // this session instead of guessing active pointer slots.
                     if event.event_type == EV_SYN && event.code == 3 { return Err(-16); }
@@ -650,10 +680,15 @@ mod android {
                     }
 
                     if !frame_is_injected(&frame, marker_code) {
-                        let frame_ns = monotonic_ns();
+                        let received = monotonic_ns();
+                        let stamp = event.time.sec.saturating_mul(1_000_000_000)
+                            .saturating_add(event.time.usec.saturating_mul(1000));
+                        let frame_ns = if event_clock && stamp > 0 && stamp <= received { stamp } else { received };
                         last_source_frame = frame_ns;
                         let was_active = slots.iter().any(|slot| slot.active);
                         let mut parsed_slot = current_slot;
+                        let before = slots;
+                        let mut contact_changed = [false; 10];
                         let mut position_changed = [false; 10];
                         for item in &frame {
                             if item.event_type != EV_ABS {
@@ -664,16 +699,15 @@ mod android {
                                     parsed_slot = item.value as usize;
                                 }
                                 ABS_MT_TRACKING_ID => {
+                                contact_changed[parsed_slot] |= slots[parsed_slot].tracking_id != item.value;
                                     slots[parsed_slot].tracking_id = item.value;
                                     slots[parsed_slot].active = item.value >= 0;
                                 }
                                 ABS_MT_POSITION_X if slots[parsed_slot].x != item.value => {
-                                    slots[parsed_slot].previous_x = slots[parsed_slot].x;
                                     slots[parsed_slot].x = item.value;
                                     position_changed[parsed_slot] = true;
                                 }
                                 ABS_MT_POSITION_Y if slots[parsed_slot].y != item.value => {
-                                    slots[parsed_slot].previous_y = slots[parsed_slot].y;
                                     slots[parsed_slot].y = item.value;
                                     position_changed[parsed_slot] = true;
                                 }
@@ -685,7 +719,14 @@ mod android {
                         }
                         current_slot = parsed_slot;
                         for slot in 0..10 {
-                            if position_changed[slot] {
+                            if contact_changed[slot] {
+                                slots[slot].previous_time_ns = 0;
+                                slots[slot].point_time_ns = frame_ns;
+                                slots[slot].previous_x = slots[slot].x;
+                                slots[slot].previous_y = slots[slot].y;
+                            } else if position_changed[slot] {
+                                slots[slot].previous_x = before[slot].x;
+                                slots[slot].previous_y = before[slot].y;
                                 slots[slot].previous_time_ns = slots[slot].point_time_ns;
                                 slots[slot].point_time_ns = frame_ns;
                             }
@@ -704,8 +745,11 @@ mod android {
                             session = false;
                         }
                         if active {
-                            PHYSICAL_FRAMES.fetch_add(1, Ordering::AcqRel);
+                        physical += 1;
+                        PHYSICAL_FRAMES.fetch_add(1, Ordering::AcqRel);
                         }
+                    } else if session {
+                        observed_extra += 1;
                     }
                     frame.clear();
                 }
@@ -724,12 +768,31 @@ mod android {
                 ideal_count = ((now - session_start) as u64 * target as u64 / 1_000_000_000) + 2;
                 next_tick = session_start + ((ideal_count - 1) * 1_000_000_000u64 / target as u64) as i64;
             }
-            while session && now >= next_tick {
+            if !session {
+                window_start = 0;
+                super::MEASUREMENT_ACTIVE.store(0, Ordering::Release);
+            } else if window_start == 0 {
+                window_start = now;
+                physical = 0;
+                observed_extra = 0;
+            } else if now - window_start >= 250_000_000 {
+                let interval = now - window_start;
+                super::SOURCE_MEASURED_HZ_X10.store((physical * 10_000_000_000 / interval) as i32, Ordering::Release);
+                super::MEASURED_HZ_X10.store(((physical + observed_extra) * 10_000_000_000 / interval) as i32, Ordering::Release);
+                super::MEASUREMENT_ACTIVE.store(1, Ordering::Release);
+                window_start = now;
+                physical = 0;
+                observed_extra = 0;
+            }
+            if session && now >= next_tick {
+                // Skip missed deadlines. Bursting old predictions adds latency and noise.
+                ideal_count = ideal_count.max(2 + ((now - session_start) as u64 * target as u64 / 1_000_000_000).saturating_sub(1));
                 if actual_count < ideal_count
                     && emit_interpolated(
                         &mut output,
                         &slots,
-                        next_tick,
+                        current_slot,
+                        now,
                         x_range,
                         y_range,
                         marker_code,
