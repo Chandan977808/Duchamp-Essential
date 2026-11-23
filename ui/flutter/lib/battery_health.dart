@@ -140,7 +140,7 @@ class _BatteryHealthScreenState extends State<BatteryHealthScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: <Widget>[
-                                  const SectionLabel('Capacity health estimate'),
+                                  const SectionLabel('"Still alive. Just not for as long."'),
                                   const SizedBox(height: 7),
                                   Text(
                                     healthPercent,
@@ -167,7 +167,7 @@ class _BatteryHealthScreenState extends State<BatteryHealthScreen> {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          'BMS charge_full ÷ charge_full_design × 100',
+                          'Battery Health',
                           style: TextStyle(
                             fontSize: 11.5,
                             color: colors.onSurfaceVariant,

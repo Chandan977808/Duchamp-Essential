@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ffi' as ffi;
 import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -6,7 +7,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/gestures.dart' show Drag;
+import 'package:flutter/gestures.dart' show Drag, EagerGestureRecognizer;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/scheduler.dart';
@@ -19,6 +20,10 @@ import 'hub_headline.dart';
 import 'motion_diagnostics.dart';
 
 import 'backend/duchamp_backend.dart';
+import 'backend/audio_backend.dart';
+import 'backend/audio_codec_capabilities.dart';
+import 'backend/audio_ldac_quality.dart';
+import 'backend/audio_device_profile.dart';
 import 'backend/per_app_backend.dart';
 import 'backend/bypass_telemetry.dart';
 import 'bypass_threshold_selector.dart';
@@ -29,10 +34,12 @@ import 'bottom_feedback.dart';
 import 'slider_style.dart';
 import 'surface_lines.dart';
 
+part 'audio_hub.dart';
 part 'system_colors.dart';
 part 'per_app_controls.dart';
 part 'global_refresh.dart';
 part 'battery_health.dart';
+part 'game_monitor.dart';
 part 'easter_eggs.dart';
 part 'aurora_drift.dart';
 part 'subsystem_clocks.dart';
@@ -78,6 +85,8 @@ enum DuchampScreen {
   perAppControls,
   globalRefresh,
   subsystemClocks,
+  audioHub,
+  gameMonitor,
 }
 
 extension DuchampScreenName on DuchampScreen {
@@ -119,6 +128,10 @@ extension DuchampScreenName on DuchampScreen {
         return 'Global Refresh Rate';
       case DuchampScreen.subsystemClocks:
         return 'Memory DVFS & UFS';
+        case DuchampScreen.audioHub:
+        return 'Audio Hub';
+        case DuchampScreen.gameMonitor:
+        return 'Game Monitor';
     }
   }
 
@@ -852,6 +865,10 @@ class _DuchampShellState extends State<DuchampShell>
         return GlobalRefreshScreen(onBack: _back);
       case DuchampScreen.subsystemClocks:
         return SubsystemClocksScreen(onBack: _back);
+        case DuchampScreen.gameMonitor:
+        return GameMonitorScreen(onBack: _back);
+        case DuchampScreen.audioHub:
+        return AudioHubScreen(onBack: _back);
       default:
         return _rootPager();
     }
@@ -4594,6 +4611,34 @@ class HubsScreen extends StatelessWidget {
                       onTap: () => onOpen(DuchampScreen.zramSwap),
                     ),
                   ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            _HubReveal(
+              duration: 610,
+              child: SurfaceCard(
+                padding: const EdgeInsets.all(11),
+                child: _HubControlRow(
+                  title: 'Game Monitor',
+                  subtitle: 'In-game FPS and device load',
+                  icon: Icons.sports_esports_rounded,
+                  accent: const Color(0xFF74E6C6),
+                  onTap: () => onOpen(DuchampScreen.gameMonitor),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            _HubReveal(
+              duration: 640,
+              child: SurfaceCard(
+                padding: const EdgeInsets.all(11),
+                child: _HubControlRow(
+                  title: 'Audio Hub',
+                  subtitle: 'Bluetooth codecs and audio preferences',
+                  icon: Icons.headphones_rounded,
+                  accent: const Color(0xFF67C2FF),
+                  onTap: () => onOpen(DuchampScreen.audioHub),
                 ),
               ),
             ),
