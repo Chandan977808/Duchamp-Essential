@@ -2,6 +2,25 @@
 
 All notable changes are documented here.
 
+## 2.0.0-hotfix
+
+Released on 23 November 2026
+
+### Added
+
+-Added a real-time FPS monitoring feature.
+-Displays CPU usage.
+-Displays GPU usage.
+-Shows live performance statistics while gaming.
+-Helps monitor device performance during gameplay.
+-Added a dedicated Bluetooth Audio section inside Audio Hub which provides quick access to Bluetooth audio controls.
+
+### Fixes 
+
+-Fixed Silky Brightness
+-Optimized touch responsiveness for a smoother and more responsive experience.
+-General stability and usability improvements.
+
 ## 2.0.0
 
 Released on 19 November 2026
