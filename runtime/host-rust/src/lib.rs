@@ -531,6 +531,8 @@ pub fn duchamp_host_open_url_jni(code: i32) -> bool {
     let url = match code {
         0 => "https://github.com/Chandan977808/Duchamp-Essential",
         1 => "https://t.me/saan_os_discussion",
+        2 => " https://github.com/Chandan977808/Duchamp-Essential",
+        3 => "https://t.me/saan_os_discussion",
         _ => return false,
     };
 
