@@ -8,18 +8,18 @@ Released on 23 November 2026
 
 ### Added
 
--Added a real-time FPS monitoring feature.
--Displays CPU usage.
--Displays GPU usage.
--Shows live performance statistics while gaming.
--Helps monitor device performance during gameplay.
--Added a dedicated Bluetooth Audio section inside Audio Hub which provides quick access to Bluetooth audio controls.
+- Added a eal-time FPS monitoring feature.
+- DisplaysCPU usage.
+- DisplaysGPU ususage
+- Shows live performance statistics while gaming.
+- Helps monitor device performance during gameplay.
+- Added a dedicated Bluetooth Audio section inside Audio Hub which provides quick access to Bluetooth audio controls.
 
 ### Fixes 
 
--Fixed Silky Brightness
--Optimized touch responsiveness for a smoother and more responsive experience.
--General stability and usability improvements.
+- Fixed Silky Brightness
+- Optimized touch responsiveness for a smoother and more responsive experience.
+- General stability and usability improvements.
 
 ## 2.0.0
 
