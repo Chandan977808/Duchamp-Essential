@@ -1515,7 +1515,7 @@ class _AudioHubScreenState extends State<AudioHubScreen>
     return DuchampScrollPage(
       children: <Widget>[
         DetailHeader(
-          title: 'Audio Hub',
+          title: 'Bluetooth Audio',
           onBack: widget.onBack,
           trailing: IconButton(
             tooltip: 'Refresh Bluetooth status',

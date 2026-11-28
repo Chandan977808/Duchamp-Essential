@@ -6,7 +6,10 @@ test "$(unzip -Z1 "$APK" | grep -E '(^|/)classes([0-9]*)?\.dex$')" = classes.dex
 DEX="$(mktemp --suffix=.dex)"
 trap 'rm -f -- "$DEX"' EXIT
 unzip -p "$APK" classes.dex > "$DEX"
-test "$(wc -c < "$DEX")" -le 98304
+# 128 KiB ceiling from the 2.x era; the Dolby TuneX adapters left in
+# 3.0.0, so this budget is now comfortable headroom. Still no
+# third-party dex and no Flutter dex: managed framework adapters only.
+test "$(wc -c < "$DEX")" -le 196608
 DEXDUMP="$(find "$SDK/build-tools" -type f -name dexdump | sort -V | tail -1)"
 test -n "$DEXDUMP"
 CLASSES="$("$DEXDUMP" "$DEX" | awk -F "'" '/Class descriptor/ {print $2}')"

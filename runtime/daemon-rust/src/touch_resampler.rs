@@ -12,6 +12,8 @@ static MEASUREMENT_ACTIVE: AtomicI32 = AtomicI32::new(0);
 static ATTACHMENT_PATH: AtomicI32 = AtomicI32::new(0);
 static PHYSICAL_FRAMES: AtomicU64 = AtomicU64::new(0);
 static INJECTED_FRAMES: AtomicU64 = AtomicU64::new(0);
+// Only incremented from the Android input worker; silenced for host builds.
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
 static MISSED_DEADLINES: AtomicU64 = AtomicU64::new(0);
 static START: Once = Once::new();
 
@@ -538,26 +540,6 @@ mod android {
         Ok(true)
     }
     
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-        #[test]
-        fn synthesized_frame_restores_native_slot_after_marker() {
-            let mut slots = [SlotState::default(); 10];
-            slots[1] = SlotState { active:true, x:10, y:20, point_time_ns:20, previous_time_ns:10,
-                previous_x:5, previous_y:20, ..SlotState::default() };
-            let path = std::env::temp_dir().join(format!("duchamp-touch-frame-{}", std::process::id()));
-            let mut output = File::create(&path).unwrap();
-            assert!(emit_interpolated(&mut output, &slots, 0, 25, (0,100), (0,100), ABS_MT_WIDTH_MAJOR, (0,10)));
-            let data = fs::read(&path).unwrap();
-            fs::remove_file(path).unwrap();
-            let events: Vec<_> = parse_events(&data).collect();
-            assert!(frame_is_injected(&events, ABS_MT_WIDTH_MAJOR));
-            assert_eq!((events[events.len()-2].code,events[events.len()-2].value),(ABS_MT_SLOT,0));
-            assert_eq!(events.iter().find(|e|e.code==ABS_MT_POSITION_Y).unwrap().value,20);
-        }
-    }
-
     fn parse_events(bytes: &[u8]) -> impl Iterator<Item = InputEvent> + '_ {
         bytes
             .chunks_exact(size_of::<InputEvent>())
@@ -567,6 +549,22 @@ mod android {
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        #[test]
+        fn synthesized_frame_restores_native_slot_after_marker() {
+            let mut slots = [SlotState::default(); 10];
+            slots[1] = SlotState { active:true, x:10, y:20, point_time_ns:20, previous_time_ns:10,
+                previous_x:5, previous_y:20, ..SlotState::default() };
+            let path = std::env::temp_dir().join(format!("duchamp-touch-frame-{}", std::process::id()));
+            let mut output = File::create(&path).unwrap();
+            assert!(emit_interpolated(&mut output, &slots, 0, 25, (0,100), (0,100), ABS_MT_WIDTH_MAJOR, (0,10)).unwrap());
+            let data = fs::read(&path).unwrap();
+            fs::remove_file(path).unwrap();
+            let events: Vec<_> = parse_events(&data).collect();
+            assert!(frame_is_injected(&events, ABS_MT_WIDTH_MAJOR));
+            assert_eq!((events[events.len()-2].code,events[events.len()-2].value),(ABS_MT_SLOT,0));
+            assert_eq!(events.iter().find(|e|e.code==ABS_MT_POSITION_Y).unwrap().value,20);
+        }
 
         #[test]
         fn distinguishes_own_marker_from_a_normal_source_frame() {
@@ -589,7 +587,7 @@ mod android {
         fn inactive_slots_emit_nothing() {
             let path = std::env::temp_dir().join(format!("duchamp-resampler-{}-{}", std::process::id(), monotonic_ns()));
             let mut output = File::create(&path).unwrap();
-            assert!(!emit_interpolated(&mut output, &[SlotState::default(); 10], 100,
+            assert!(!emit_interpolated(&mut output, &[SlotState::default(); 10], 0, 150,
                 (0, 1000), (0, 1000), ABS_MT_WIDTH_MINOR, (0, 255)).unwrap());
             assert_eq!(output.metadata().unwrap().len(), 0);
             drop(output);
@@ -604,7 +602,7 @@ mod android {
             let mut slots = [SlotState::default(); 10];
             slots[0] = SlotState { active: true, x: 10, previous_x: 0,
                 point_time_ns: 100, previous_time_ns: 50, ..SlotState::default() };
-            assert_eq!(emit_interpolated(&mut output, &slots, 125, (0, 1000),
+            assert_eq!(emit_interpolated(&mut output, &slots, 0, 125, (0, 1000),
                 (0, 1000), ABS_MT_WIDTH_MINOR, (0, 255)), Err(-14));
             drop(output);
             fs::remove_file(path).unwrap();

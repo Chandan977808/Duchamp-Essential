@@ -2,24 +2,53 @@
 
 All notable changes are documented here.
 
-## 2.0.0-hotfix
-
-Released on 23 November 2026
+## 3.0.0
 
 ### Added
 
-- Added a eal-time FPS monitoring feature.
-- DisplaysCPU usage.
-- DisplaysGPU ususage
-- Shows live performance statistics while gaming.
-- Helps monitor device performance during gameplay.
-- Added a dedicated Bluetooth Audio section inside Audio Hub which provides quick access to Bluetooth audio controls.
+- **Charging Limit Control** (Charging screen, below Bypass Charging): the
+  daemon suspends charger input via
+  `/sys/class/power_supply/battery/input_suspend` — `1` at the selected
+  level (80, 85, 90 or 95%), `0` again only when the level drops below the
+  limit, and `0` immediately when the feature is disabled. Writes are
+  verified by readback; the switch and limit persist in daemon state and
+  survive reboot, with power-supply uevents plus a two-second maintenance
+  poll driving transitions. Green-accented card with its own charge-limit
+  icon, Off/Active badge, "Set limit at" slider (80/85/90/95) and a live
+  description ("Charging up to 80%" below the limit, suspended state once
+  held). New daemon commands (`SET charging.limit`,
+  `SET charging.limit_threshold`), telemetry fields (`charge_limit_*`),
+  host bridge command and FFI export, and the `charge_limit.rs` policy
+  module with unit tests.
 
-### Fixes 
+### Fixed
 
-- Fixed Silky Brightness
-- Optimized touch responsiveness for a smoother and more responsive experience.
-- General stability and usability improvements.
+- Silky brightness
+- Improved touch
+
+## 2.1.0
+
+### Added
+
+- Diagnostics: Added an FPS Monitor row to the Diagnostics screen. It shows a
+  green tick when the Game Monitor accessibility service is enabled, connected
+  and the FPS meter overlay is active for at least one selected app. Error
+  states match the other diagnostic rows: not enabled, enabled but not yet
+  connected, overlay off, or no apps selected.
+
+### Fixed
+
+- Full source review for 2.1.0, verified with the complete Rust and Flutter
+  test suites (`112` daemon tests, `185` UI tests):
+  - touch_resampler: merged the duplicated test module that broke `cargo test`,
+    repaired three test calls that no longer matched the 8-argument
+    `emit_interpolated` signature, and removed leftover retry-state warnings in
+    app_runtime.
+  - Service disable no longer fails with "restoration incomplete" when Silky
+    was never enabled: the unconditional Silky brightness restore now runs only
+    for an active Silky override.
+  - Game Monitor screen test: scroll the below-the-fold switch rows into view
+    and rebuild the lazily-unmounted preview before simulating gestures.
 
 ## 2.0.0
 

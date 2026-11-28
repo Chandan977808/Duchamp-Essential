@@ -9,6 +9,7 @@ import android.bluetooth.BluetoothProfile;
 import android.bluetooth.BluetoothDevice;
 import android.content.Context;
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.IntentFilter;
 import java.util.List;
 import android.content.pm.PackageManager;
@@ -30,6 +31,19 @@ public final class DuchampActivity extends NativeActivity {
         if (activity == null) return 0;
         activity.runOnUiThread(() -> activity.startActivity(new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)));
         return 1;
+    }
+    /**
+     * FPS Monitor (Game Monitor) diagnosis:
+     * 0 not enabled · 1 enabled and working · 2 overlay off ·
+     * 3 no apps selected · 4 enabled but not connected.
+     */
+    public static int gameMonitorDiagnosticState() {
+        if (GameMonitorService.isServiceConnected()) {
+            return GameMonitorService.monitorState();
+        }
+        DuchampActivity activity = current;
+        if (activity == null) return 0;
+        return GameMonitorService.enabledInSettings(activity) ? 4 : 0;
     }
     private static DuchampActivity current;
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -728,8 +742,22 @@ public final class DuchampActivity extends NativeActivity {
         super.onNewIntent(intent); setIntent(intent); handleTileIntent(intent);
     }
     private void handleTileIntent(Intent intent) {
-        if (intent != null && "android.service.quicksettings.action.QS_TILE_PREFERENCES".equals(intent.getAction()))
-            nativeOpenBypassSettings();
+        if (intent != null && "android.service.quicksettings.action.QS_TILE_PREFERENCES".equals(intent.getAction())) {
+            // Only the bypass tile opens bypass controls. Other tiles of
+            // this package land on the app home screen instead.
+            ComponentName tile = null;
+            if (Build.VERSION.SDK_INT >= 33) {
+                tile = intent.getParcelableExtra(
+                    Intent.EXTRA_COMPONENT_NAME, ComponentName.class);
+            } else {
+                tile = intent.getParcelableExtra(Intent.EXTRA_COMPONENT_NAME);
+            }
+            if (tile == null
+                    || BypassTileService.class.getName().equals(
+                        tile.getClassName())) {
+                nativeOpenBypassSettings();
+            }
+        }
     }
     /** Called only when native navigation ownership changes; no polling loop. */
     static boolean isAudioRestoreOwnerActive() {

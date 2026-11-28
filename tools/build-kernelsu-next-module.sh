@@ -5,7 +5,9 @@ DUCHAMP_PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DUCHAMP_MODULE_SOURCE="$DUCHAMP_PROJECT_ROOT/android/kernelsu-next"
 DUCHAMP_SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-$HOME/Android/Sdk}}"
 DUCHAMP_STAMP="$(date +%Y%m%d-%H%M%S)"
-DUCHAMP_BUILD_ROOT="$DUCHAMP_PROJECT_ROOT/out/kernelsu-next/$DUCHAMP_STAMP"
+# Build root may be redirected (sandboxed builds with little root-fs space)
+# by exporting DUCHAMP_BUILD_ROOT before invoking this script.
+DUCHAMP_BUILD_ROOT="${DUCHAMP_BUILD_ROOT:-$DUCHAMP_PROJECT_ROOT/out/kernelsu-next/$DUCHAMP_STAMP}"
 DUCHAMP_STAGE="$DUCHAMP_BUILD_ROOT/module"
 DUCHAMP_APP_BUILD="$DUCHAMP_BUILD_ROOT/application"
 

@@ -27,6 +27,7 @@ import 'backend/audio_device_profile.dart';
 import 'backend/per_app_backend.dart';
 import 'backend/bypass_telemetry.dart';
 import 'bypass_threshold_selector.dart';
+import 'charge_limit_selector.dart';
 import 'backend/system_colors_library.dart';
 import 'system_colors_preview.dart';
 import 'service_confirmation.dart';
@@ -35,6 +36,7 @@ import 'slider_style.dart';
 import 'surface_lines.dart';
 
 part 'audio_hub.dart';
+part 'audio_hub_section.dart';
 part 'system_colors.dart';
 part 'per_app_controls.dart';
 part 'global_refresh.dart';
@@ -86,6 +88,7 @@ enum DuchampScreen {
   globalRefresh,
   subsystemClocks,
   audioHub,
+  bluetoothAudio,
   gameMonitor,
 }
 
@@ -128,9 +131,11 @@ extension DuchampScreenName on DuchampScreen {
         return 'Global Refresh Rate';
       case DuchampScreen.subsystemClocks:
         return 'Memory DVFS & UFS';
-        case DuchampScreen.audioHub:
+      case DuchampScreen.audioHub:
         return 'Audio Hub';
-        case DuchampScreen.gameMonitor:
+      case DuchampScreen.bluetoothAudio:
+        return 'Bluetooth Audio';
+      case DuchampScreen.gameMonitor:
         return 'Game Monitor';
     }
   }
@@ -865,9 +870,11 @@ class _DuchampShellState extends State<DuchampShell>
         return GlobalRefreshScreen(onBack: _back);
       case DuchampScreen.subsystemClocks:
         return SubsystemClocksScreen(onBack: _back);
-        case DuchampScreen.gameMonitor:
+      case DuchampScreen.gameMonitor:
         return GameMonitorScreen(onBack: _back);
-        case DuchampScreen.audioHub:
+      case DuchampScreen.audioHub:
+        return AudioHubSectionScreen(onBack: _back, onOpen: _openNestedDetail);
+      case DuchampScreen.bluetoothAudio:
         return AudioHubScreen(onBack: _back);
       default:
         return _rootPager();
@@ -4617,14 +4624,21 @@ class HubsScreen extends StatelessWidget {
             const SizedBox(height: 12),
             _HubReveal(
               duration: 610,
-              child: SurfaceCard(
-                padding: const EdgeInsets.all(11),
-                child: _HubControlRow(
-                  title: 'Game Monitor',
-                  subtitle: 'In-game FPS and device load',
-                  icon: Icons.sports_esports_rounded,
-                  accent: const Color(0xFF74E6C6),
-                  onTap: () => onOpen(DuchampScreen.gameMonitor),
+              child: _HubCategoryCard(
+                title: 'Audio Hub',
+                subtitle: 'Bluetooth audio routing and saved profiles',
+                icon: Icons.graphic_eq_rounded,
+                accent: const Color(0xFF67C2FF),
+                child: Column(
+                  children: <Widget>[
+                    _HubControlRow(
+                      title: 'Bluetooth audio',
+                      subtitle: 'Codecs, devices and saved profiles',
+                      icon: Icons.headphones_rounded,
+                      accent: const Color(0xFF8B9CFF),
+                      onTap: () => onOpen(DuchampScreen.bluetoothAudio),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -4634,11 +4648,11 @@ class HubsScreen extends StatelessWidget {
               child: SurfaceCard(
                 padding: const EdgeInsets.all(11),
                 child: _HubControlRow(
-                  title: 'Audio Hub',
-                  subtitle: 'Bluetooth codecs and audio preferences',
-                  icon: Icons.headphones_rounded,
-                  accent: const Color(0xFF67C2FF),
-                  onTap: () => onOpen(DuchampScreen.audioHub),
+                  title: 'Game Monitor',
+                  subtitle: 'In-game FPS and device load',
+                  icon: Icons.sports_esports_rounded,
+                  accent: const Color(0xFF74E6C6),
+                  onTap: () => onOpen(DuchampScreen.gameMonitor),
                 ),
               ),
             ),
@@ -5567,6 +5581,8 @@ class _ChargingScreenState extends State<ChargingScreen> {
                   child: _BypassChargingCard(snapshot: snapshot),
                 ),
                 const SizedBox(height: 9),
+                _ChargingLimitCard(snapshot: snapshot),
+                const SizedBox(height: 9),
                 _ChargingModeCard(snapshot: snapshot),
               ],
             );
@@ -5961,6 +5977,341 @@ class _BypassPowerPathPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_BypassPowerPathPainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.flow != flow;
+}
+
+class _ChargingLimitCard extends StatefulWidget {
+  const _ChargingLimitCard({required this.snapshot});
+
+  final DuchampBackendSnapshot snapshot;
+
+  @override
+  State<_ChargingLimitCard> createState() => _ChargingLimitCardState();
+}
+
+class _ChargingLimitCardState extends State<_ChargingLimitCard> {
+  static const Color accent = Color(0xFF3ECF8E);
+  bool? _pending;
+  int? _limitPending;
+  int? _limitPreview;
+
+  DuchampBackendSnapshot get snapshot => widget.snapshot;
+
+  @override
+  void didUpdateWidget(covariant _ChargingLimitCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_pending != null &&
+        (DuchampBackend.instance.chargeLimitEnabled == _pending ||
+            snapshot.chargingWriteState == -1)) {
+      _pending = null;
+    }
+    if (_limitPending != null &&
+        (DuchampBackend.instance.chargeLimitThreshold == _limitPending ||
+            snapshot.chargingWriteState == -1)) {
+      _limitPending = null;
+    }
+  }
+
+  String _stateLabel(bool enabled) {
+    if (!snapshot.ready) return 'BACKEND UNAVAILABLE';
+    if (!snapshot.serviceEnabled) return 'DISABLED';
+    if (_pending != null) return 'APPLYING';
+    if (!DuchampBackend.instance.chargeLimitSupported) return 'NOT SUPPORTED';
+    if (!enabled) return 'OFF';
+    return 'ACTIVE';
+  }
+
+  String _description(bool enabled) {
+    if (!snapshot.ready) {
+      return 'Connect to the device backend to check input_suspend support.';
+    }
+    if (!snapshot.serviceEnabled) {
+      return 'Duchamp Essential is disabled. Enable it in Settings to use charging limit.';
+    }
+    if (_pending != null) return 'Applying the charging limit…';
+    if (!DuchampBackend.instance.chargeLimitSupported) {
+      return 'The kernel input_suspend node is required. Charging limit '
+          'controls charger input directly; it does not provide direct '
+          'system power the way bypass charging does.';
+    }
+    if (!enabled) {
+      return 'Suspends charger input at the selected battery level — 80, 85, '
+          '90 or 95% — and releases it automatically when the level drops '
+          'below the limit. Disabling releases input_suspend at once. Works '
+          'independently of this page and the app.';
+    }
+    final int limit = DuchampBackend.instance.chargeLimitThreshold;
+    if (DuchampBackend.instance.chargeLimitError == 1) {
+      return 'The saved limit is still enabled, but input_suspend control or '
+          'battery telemetry is unavailable right now.';
+    }
+    if (snapshot.usbOnline == 0) {
+      return 'Charging limit is armed at $limit%. Connect a charger to use it.';
+    }
+    if (DuchampBackend.instance.chargeLimitState == 1) {
+      return 'Charger input is suspended at $limit%. The battery discharges '
+          'as you use the phone; charging resumes automatically when the '
+          'level drops below $limit%.';
+    }
+    return 'Charging up to $limit%. At $limit%, charger input is suspended '
+        '(input_suspend=1) and charging resumes only when the level drops '
+        'below $limit%.';
+  }
+
+  void _setEnabled(bool enabled) {
+    if (_pending != null ||
+        _limitPending != null ||
+        snapshot.chargingWriteState == 1 ||
+        !DuchampBackend.instance.chargeLimitSupported) {
+      return;
+    }
+    setState(() => _pending = enabled);
+    DuchampHaptics.toggle(enabled);
+    if (!DuchampBackend.instance.setChargeLimit(enabled)) {
+      setState(() => _pending = null);
+      DuchampHaptics.reject();
+      DuchampBackend.instance.refresh();
+    }
+  }
+
+  void _setLimit(int limit) {
+    setState(() => _limitPreview = null);
+    if (_limitPending != null || !snapshot.controlsAvailable) return;
+    if (limit == DuchampBackend.instance.chargeLimitThreshold) return;
+    DuchampHaptics.segment();
+    setState(() => _limitPending = limit);
+    if (!DuchampBackend.instance.setChargeLimitThreshold(limit)) {
+      setState(() => _limitPending = null);
+      DuchampHaptics.reject();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    final bool supported = DuchampBackend.instance.chargeLimitSupported;
+    final bool enabled =
+        _pending ?? DuchampBackend.instance.chargeLimitEnabled;
+    final bool applying = _pending != null || snapshot.chargingWriteState == 1;
+    final String state = _stateLabel(enabled);
+
+    return SurfaceCard(
+      padding: const EdgeInsets.fromLTRB(14, 14, 10, 14),
+      accent: supported ? accent : colors.onSurfaceVariant,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: <Color>[
+                      accent.withValues(alpha: enabled ? 0.30 : 0.14),
+                      accent.withValues(alpha: enabled ? 0.09 : 0.035),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: accent.withValues(alpha: enabled ? 0.42 : 0.18),
+                  ),
+                ),
+                child: Center(
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween<double>(begin: 0, end: enabled ? 1 : 0),
+                    duration: MediaQuery.disableAnimationsOf(context)
+                        ? Duration.zero
+                        : const Duration(milliseconds: 420),
+                    curve: Curves.easeOutCubic,
+                    builder:
+                        (BuildContext context, double flow, Widget? child) {
+                          return CustomPaint(
+                            size: const Size(32, 32),
+                            painter: _ChargeLimitPainter(
+                              color: supported
+                                  ? accent
+                                  : colors.onSurfaceVariant,
+                              flow: flow,
+                            ),
+                          );
+                        },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    const Text(
+                      'Charging Limit Control',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: (enabled ? accent : colors.onSurfaceVariant)
+                            .withValues(alpha: 0.11),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        state,
+                        style: TextStyle(
+                          fontSize: 8.6,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.55,
+                          color: enabled ? accent : colors.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch.adaptive(
+                value: enabled,
+                onChanged: supported && snapshot.controlsAvailable
+                    ? _setEnabled
+                    : null,
+                activeThumbColor: accent,
+                activeTrackColor: accent.withValues(alpha: 0.34),
+              ),
+            ],
+          ),
+          const SizedBox(height: 11),
+          Row(
+            children: <Widget>[
+              const Expanded(
+                child: Text(
+                  'Set limit at',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                ),
+              ),
+              Text(
+                '${_limitPreview ?? _limitPending ?? DuchampBackend.instance.chargeLimitThreshold}%',
+                style: const TextStyle(
+                  color: accent,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          DuchampChargeLimitSelector(
+            value:
+                _limitPending ?? DuchampBackend.instance.chargeLimitThreshold,
+            enabled:
+                supported &&
+                snapshot.controlsAvailable &&
+                !applying &&
+                _limitPending == null,
+            onChanged: _setLimit,
+            onPreview: (limit) {
+              DuchampHaptics.frequentSegment();
+              setState(() => _limitPreview = limit);
+            },
+            accent: accent,
+          ),
+          const SizedBox(height: 11),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
+            decoration: BoxDecoration(
+              color: (supported ? accent : colors.onSurfaceVariant).withValues(
+                alpha: 0.065,
+              ),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: (supported ? accent : colors.onSurfaceVariant)
+                    .withValues(alpha: 0.16),
+              ),
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight:
+                    MediaQuery.textScalerOf(context).scale(10.7) * 1.35 * 5,
+              ),
+              child: Text(
+                _description(enabled),
+                style: TextStyle(
+                  fontSize: 10.7,
+                  height: 1.35,
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChargeLimitPainter extends CustomPainter {
+  const _ChargeLimitPainter({required this.color, required this.flow});
+
+  final Color color;
+  final double flow;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.scale(size.width / 32, size.height / 32);
+    final Paint stroke = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.8
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final Paint fill = Paint()..color = color.withValues(alpha: 0.30);
+    final Paint solid = Paint()..color = color;
+
+    // Battery shell with the terminal nub on the right.
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(4, 9, 22, 14),
+        const Radius.circular(3),
+      ),
+      stroke,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(27, 13, 3.5, 6),
+        const Radius.circular(1),
+      ),
+      stroke,
+    );
+    // Charge held at the limit: the cell fills up to the line while active.
+    if (flow > 0) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(5.8, 17.5 - 5.8 * flow, 18.4, 5.8 * flow),
+          const Radius.circular(1.5),
+        ),
+        fill,
+      );
+    }
+    // The limit line across the cell, capped by end ticks.
+    canvas.drawLine(const Offset(11, 8), const Offset(11, 24), solid);
+    canvas.drawLine(const Offset(8.6, 8), const Offset(13.4, 8), solid);
+    canvas.drawLine(const Offset(8.6, 24), const Offset(13.4, 24), solid);
+  }
+
+  @override
+  bool shouldRepaint(_ChargeLimitPainter oldDelegate) =>
       oldDelegate.color != color || oldDelegate.flow != flow;
 }
 
@@ -13397,6 +13748,18 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                         : touchAck == 0
                         ? 'Failed'
                         : 'Active',
+                  ),
+                  const Divider(height: 14),
+                  _DiagnosticRow(
+                    label: 'FPS Monitor',
+                    good: snapshot.gameMonitor == 1,
+                    detail: switch (snapshot.gameMonitor) {
+                      1 => 'Enabled & working',
+                      2 => 'Overlay off',
+                      3 => 'No apps selected',
+                      4 => 'Not connected',
+                      _ => 'Not enabled',
+                    },
                   ),
                 ],
               ),

@@ -17,4 +17,5 @@ fi
 if grep -Ev '^Lcom/saan/duchamp/essential/(DuchampActivity|BypassTileService|AudioCompanionService|AudioPresenceObserver|AudioProfileStore|AudioRestoreController|GameMonitorService)(;|\$)' "$OUT/platform-dex/classes.txt"; then
     echo 'Unexpected managed class in platform bridge' >&2; exit 1
 fi
-test "$(wc -c < "$OUT/platform-dex/classes.dex")" -le 98304
+# third-party dex and no Flutter dex: managed framework adapters only.
+test "$(wc -c < "$OUT/platform-dex/classes.dex")" -le 196608

@@ -19,6 +19,9 @@ public final class GameMonitorService extends AccessibilityService {
     private static native String sample(String pkg);
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    // In-process diagnosis state, read by DuchampActivity through JNI.
+    private static volatile GameMonitorService liveService;
+    private static volatile boolean bound;
     private final BroadcastReceiver screen = new BroadcastReceiver() {
         @Override public void onReceive(Context context, Intent intent) { hide(); }
     };
@@ -152,6 +155,8 @@ public final class GameMonitorService extends AccessibilityService {
     private WindowManager wm;
     private boolean registered;
     @Override public void onServiceConnected() {
+        bound = true;
+        liveService = this;
         readConfig();
         wm = getSystemService(WindowManager.class);
         if (!registered) {
@@ -404,6 +409,10 @@ public final class GameMonitorService extends AccessibilityService {
         if (chip!=null) wm.updateViewLayout(chip,params());
     }
     @Override public void onInterrupt() { hide(); }
+    @Override public boolean onUnbind(Intent intent) {
+        bound = false;
+        return super.onUnbind(intent);
+    }
     @Override public void onDestroy() {
         main.removeCallbacks(checkFocus);
         focusVersion++;
@@ -412,6 +421,56 @@ public final class GameMonitorService extends AccessibilityService {
         if (registered) { unregisterReceiver(screen); unregisterReceiver(battery); }
         historyIO.shutdown();
         worker.shutdownNow();
+        bound = false;
+        liveService = null;
         super.onDestroy();
+    }
+
+    public static boolean isServiceConnected() { return bound; }
+
+    /** Read-only Settings.Secure check for this accessibility service. */
+    public static boolean enabledInSettings(Context context) {
+        try {
+            String raw = android.provider.Settings.Secure.getString(
+                context.getContentResolver(),
+                android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+            if (raw == null) return false;
+            for (String entry : raw.split(":")) {
+                ComponentName component = ComponentName.unflattenFromString(entry);
+                if (component != null
+                        && component.getPackageName().equals(context.getPackageName())
+                        && component.getClassName().equals(GameMonitorService.class.getName())) {
+                    return true;
+                }
+            }
+        } catch (RuntimeException exception) {
+            android.util.Log.w("DuchampGameMonitor", "Accessibility settings read failed", exception);
+        }
+        return false;
+    }
+
+    /**
+     * Connected-service diagnosis for the Diagnostics screen:
+     * 1 working · 2 overlay off · 3 no apps selected · 4 enabled but not connected.
+     */
+    public static int monitorState() {
+        GameMonitorService self = liveService;
+        if (self == null || !bound) return 4;
+        JSONObject config;
+        try {
+            java.io.File file = new java.io.File(self.getFilesDir(), "game-monitor.json");
+            config = new JSONObject(new String(
+                java.nio.file.Files.readAllBytes(file.toPath()),
+                java.nio.charset.StandardCharsets.UTF_8));
+        } catch (Exception e) { config = new JSONObject(); }
+        if (!config.optBoolean("overlayEnabled", true)) return 2;
+        JSONObject apps = config.optJSONObject("apps");
+        if (apps != null) {
+            Iterator<String> keys = apps.keys();
+            while (keys.hasNext()) {
+                if (apps.optBoolean(keys.next(), false)) return 1;
+            }
+        }
+        return 3;
     }
 }

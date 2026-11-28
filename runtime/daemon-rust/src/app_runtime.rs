@@ -1019,9 +1019,9 @@ pub(super) fn start() {
     let _ = WAKE.set(sender);
     std::thread::spawn(move || {
         // Recover prior temporary overrides before allowing foreground writes.
-        let mut delay = Duration::from_secs(1);
         loop {
-            let gate = service_control::GATE.write().expect("service gate");
+            // Held for the whole recovery attempt: foreground writes wait.
+            let _gate = service_control::GATE.write().expect("service gate");
             if RECOVERY_READY.load(Ordering::Acquire) {
                 break;
             }

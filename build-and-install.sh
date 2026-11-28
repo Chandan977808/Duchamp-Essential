@@ -207,13 +207,20 @@ fi
 cp -a "$ALIGNED" "$APK"
 
 "$APKSIGNER" sign \
+    --min-sdk-version 23 \
+    --v1-signing-enabled true \
+    --v2-signing-enabled true \
+    --v3-signing-enabled true \
     --ks "$KEYSTORE" \
     --ks-key-alias "$ALIAS" \
     --ks-pass "pass:$KS_PASS" \
     --key-pass "pass:$KEY_PASS" \
     "$APK"
 
-"$APKSIGNER" verify --verbose "$APK" >/dev/null
+# The manifest pins minSdkVersion=31, which makes apksigner's default verify
+# range report v1/v2 as "not applicable". Check the whole range the signer
+# was asked to cover so v1+v2+v3 are all verified as present and valid.
+"$APKSIGNER" verify --verbose --min-sdk-version 23 --max-sdk-version 36 "$APK" >/dev/null
 echo "APK_SIGNATURE=PASS"
 
 echo

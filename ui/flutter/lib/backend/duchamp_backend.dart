@@ -42,6 +42,7 @@ final class DuchampBackendSnapshot {
     required this.ufsScheduler,
     required this.touchHal,
     required this.displayHal,
+    required this.gameMonitor,
     required this.touchState,
     required this.displayColor,
     required this.displayTemp,
@@ -79,6 +80,10 @@ final class DuchampBackendSnapshot {
   final int ufsScheduler;
   final int touchHal;
   final int displayHal;
+  // FPS Monitor (Game Monitor) diagnosis:
+  // -1 unknown · 0 not enabled · 1 enabled and working · 2 overlay off ·
+  // 3 no apps selected · 4 enabled but not connected.
+  final int gameMonitor;
   final int touchState;
   final int displayColor;
   final int displayTemp;
@@ -139,6 +144,7 @@ final class DuchampBackend {
   late _I32Dart _chargingModeNative;
   late _SetI32Dart _setChargingModeNative;
   late _SetI32Dart _setBypassChargingNative;
+  late _SetI32Dart _setChargeLimitNative;
   late _I32Dart _batteryCapacityNative;
   late _I32Dart _batteryTempNative;
   late _I64Dart _batteryVoltageNative;
@@ -159,6 +165,7 @@ final class DuchampBackend {
   late _SetI32Dart _setUfsSchedulerNative;
   late _I32Dart _touchHalNative;
   late _I32Dart _displayHalNative;
+  late _I32Dart _gameMonitorNative;
   late _I32Dart _touchStateNative;
   late _SetI32Dart _setTouchStateNative;
   late _I32Dart _displayColorNative;
@@ -210,6 +217,7 @@ final class DuchampBackend {
     ufsScheduler: -1,
     touchHal: 0,
     displayHal: 0,
+    gameMonitor: -1,
     touchState: -1,
     displayColor: -1,
     displayTemp: -1,
@@ -289,6 +297,9 @@ final class DuchampBackend {
       _setBypassChargingNative = lib.lookupFunction<_SetI32Native, _SetI32Dart>(
         'duchamp_backend_set_bypass_charging',
       );
+      _setChargeLimitNative = lib.lookupFunction<_SetI32Native, _SetI32Dart>(
+        'duchamp_backend_set_charge_limit',
+      );
       _batteryCapacityNative = lib.lookupFunction<_I32Native, _I32Dart>(
         'duchamp_backend_get_battery_capacity',
       );
@@ -351,6 +362,9 @@ final class DuchampBackend {
       );
       _displayHalNative = lib.lookupFunction<_I32Native, _I32Dart>(
         'duchamp_backend_get_display_hal',
+      );
+      _gameMonitorNative = lib.lookupFunction<_I32Native, _I32Dart>(
+        'duchamp_backend_get_game_monitor',
       );
       _touchStateNative = lib.lookupFunction<_I32Native, _I32Dart>(
         'duchamp_backend_get_touch_state',
@@ -489,6 +503,7 @@ final class DuchampBackend {
       ufsScheduler: _ufsSchedulerNative(),
       touchHal: _touchHalNative(),
       displayHal: _displayHalNative(),
+      gameMonitor: _gameMonitorNative(),
       touchState: _touchStateNative(),
       displayColor: _displayColorNative(),
       displayTemp: _displayTempNative(),
@@ -540,6 +555,17 @@ final class DuchampBackend {
       setExtendedOperation(31, percent);
   bool setBypassCharging(bool enabled) =>
       _queue(_setBypassChargingNative(enabled ? 1 : 0));
+  bool get chargeLimitSupported => extendedValue(122) == 1;
+  int get chargeLimitState => extendedValue(123);
+  bool get chargeLimitEnabled => chargeLimitSaved == 1;
+  int get chargeLimitSaved => extendedValue(124);
+  int get chargeLimitThreshold => extendedValue(125);
+  int get chargeLimitError => extendedValue(126);
+  bool setChargeLimitThreshold(int percent) =>
+      const <int>{80, 85, 90, 95}.contains(percent) &&
+      setExtendedOperation(32, percent);
+  bool setChargeLimit(bool enabled) =>
+      _queue(_setChargeLimitNative(enabled ? 1 : 0));
   bool setTouchProfile(int profile) {
     if (profile < 0 || profile > 7) return false;
     return _queue(_setTouchStateNative(profile));
@@ -586,6 +612,7 @@ final class DuchampBackend {
         ufsScheduler: _latest.ufsScheduler,
         touchHal: _latest.touchHal,
         displayHal: _latest.displayHal,
+        gameMonitor: _latest.gameMonitor,
         touchState: _latest.touchState,
         displayColor: _latest.displayColor,
         displayTemp: _latest.displayTemp,

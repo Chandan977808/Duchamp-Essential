@@ -16,7 +16,7 @@ const SOCKET_NAME: &str = "duchamp_essentiald_v15";
 const REVERSE_SOCKET_NAME: &str = "duchamp_essential_app_v15";
 const LOOPBACK_PORT: u16 = 732;
 const LOOPBACK_PRIVILEGE_PROBE_PORT: u16 = 731;
-const EXTENDED_VALUE_COUNT: usize = 122;
+const EXTENDED_VALUE_COUNT: usize = 127;
 
 #[repr(C)]
 struct SockAddrUn {
@@ -147,6 +147,7 @@ enum Command {
     Refresh,
     Charging(i32),
     BypassCharging(i32),
+    ChargeLimit(i32),
     Touch(i32),
     DisplayColor(i32),
     DisplayTemp(i32),
@@ -846,6 +847,11 @@ fn refresh(cache: &Cache) -> Result<(), String> {
         ("bypass_threshold", 119),
         ("bypass_phase", 120),
         ("bypass_error", 121),
+        ("charge_limit_supported", 122),
+        ("charge_limit_state", 123),
+        ("charge_limit_saved", 124),
+        ("charge_limit_threshold", 125),
+        ("charge_limit_error", 126),
     ];
 
     for &(key, index) in extended_fields {
@@ -926,6 +932,9 @@ fn perform(command: Command) -> Result<(), String> {
         }
         Command::BypassCharging(v) if matches!(v, 0 | 1) => {
             request(&format!("SET charging.bypass {v}")).map(|_| ())
+        }
+        Command::ChargeLimit(v) if matches!(v, 0 | 1) => {
+            request(&format!("SET charging.limit {v}")).map(|_| ())
         }
         Command::Touch(v) if (0..=7).contains(&v) => request(&format!("SET touch {v}")).map(|_| ()),
         Command::DisplayColor(v) if (-1..=2).contains(&v) => {
@@ -1143,6 +1152,9 @@ fn perform(command: Command) -> Result<(), String> {
                 31 if matches!(a, 0 | 20 | 40 | 80 | 90) => {
                     format!("SET charging.bypass_threshold {a}")
                 }
+                32 if matches!(a, 80 | 85 | 90 | 95) => {
+                    format!("SET charging.limit_threshold {a}")
+                }
                 _ => return Err("invalid extended command".into()),
             };
 
@@ -1157,6 +1169,7 @@ fn duchamp_command_name(command: &Command) -> &'static str {
         Command::Refresh => "refresh",
         Command::Charging(_) => "charging",
         Command::BypassCharging(_) => "charging.bypass",
+        Command::ChargeLimit(_) => "charging.limit",
         Command::Touch(_) => "touch",
         Command::DisplayColor(_) => "display.color",
         Command::DisplayTemp(_) => "display.temp",
@@ -1386,7 +1399,10 @@ fn worker(cache: Arc<Cache>, rx: mpsc::Receiver<Command>) {
                 let name = duchamp_command_name(&command);
                 let charging_action = matches!(
                     &command,
-                    Command::Charging(_) | Command::BypassCharging(_) | Command::Extended(31, _, _)
+                    Command::Charging(_)
+                        | Command::BypassCharging(_)
+                        | Command::ChargeLimit(_)
+                        | Command::Extended(31 | 32, _, _)
                 );
                 let service_action = matches!(&command, Command::Extended(29 | 30, _, _));
 
@@ -1564,6 +1580,13 @@ pub extern "C" fn duchamp_backend_set_bypass_charging(v: i32) -> i32 {
         return 0;
     }
     send_charging(Command::BypassCharging(v))
+}
+#[unsafe(no_mangle)]
+pub extern "C" fn duchamp_backend_set_charge_limit(v: i32) -> i32 {
+    if !matches!(v, 0 | 1) {
+        return 0;
+    }
+    send_charging(Command::ChargeLimit(v))
 }
 #[unsafe(no_mangle)]
 pub extern "C" fn duchamp_backend_get_battery_capacity() -> i32 {

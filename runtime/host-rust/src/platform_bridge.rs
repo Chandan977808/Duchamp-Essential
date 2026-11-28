@@ -7,7 +7,7 @@ use jni::{
 };
 use std::sync::{
     Mutex, OnceLock,
-    atomic::{AtomicI32, Ordering},
+    atomic::{AtomicI32, AtomicU64, Ordering},
 };
 
 static ACTIVITY: OnceLock<Mutex<Option<(jni::JavaVM, jni::objects::GlobalRef)>>> = OnceLock::new();
@@ -1260,6 +1260,61 @@ pub extern "C" fn duchamp_host_audio_device_name(buffer: *mut u8, capacity: usiz
     }
 
     bytes.len() as i32
+}
+
+// FPS Monitor (Game Monitor) diagnosis, cached so the 500 ms UI poll never
+// makes a JNI + settings round trip per frame:
+// 0 not enabled · 1 enabled and working · 2 overlay off ·
+// 3 no apps selected · 4 enabled but not connected.
+static GAME_MONITOR_STATE: AtomicI32 = AtomicI32::new(-1);
+static GAME_MONITOR_STAMP_MILLIS: AtomicU64 = AtomicU64::new(0);
+const GAME_MONITOR_CACHE_MILLIS: u64 = 1000;
+
+fn now_millis() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_millis() as u64)
+        .unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn duchamp_backend_get_game_monitor() -> i32 {
+    let now = now_millis();
+    let stamp = GAME_MONITOR_STAMP_MILLIS.load(Ordering::Acquire);
+    if stamp != 0 && now.saturating_sub(stamp) < GAME_MONITOR_CACHE_MILLIS {
+        return GAME_MONITOR_STATE.load(Ordering::Acquire);
+    }
+
+    let value = query_game_monitor_diagnostic_state();
+    GAME_MONITOR_STATE.store(value, Ordering::Release);
+    GAME_MONITOR_STAMP_MILLIS.store(now, Ordering::Release);
+    value
+}
+
+fn query_game_monitor_diagnostic_state() -> i32 {
+    let Some(activity) = ACTIVITY.get() else {
+        return 0;
+    };
+    let guard = activity.lock().unwrap();
+    let Some((vm, reference)) = guard.as_ref() else {
+        return 0;
+    };
+    let Ok(mut env) = vm.attach_current_thread() else {
+        return 0;
+    };
+
+    let result = env.with_local_frame(8, |env| -> jni::errors::Result<i32> {
+        let class = env.get_object_class(reference.as_obj())?;
+        env.call_static_method(class, "gameMonitorDiagnosticState", "()I", &[])?
+            .i()
+    });
+
+    if env.exception_check().unwrap_or(false) {
+        let _ = env.exception_clear();
+        return 0;
+    }
+
+    result.unwrap_or(0)
 }
 
 #[unsafe(no_mangle)]

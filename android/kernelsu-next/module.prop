@@ -1,6 +1,6 @@
 id=saan_duchamp_essential
 name=Duchamp Essential
-version=v2.0.0
-versionCode=20000
+version=v3.0.0
+versionCode=30000
 author=Saan
 description=KernelSU Next and Magisk package for Duchamp Essential. Keeps the Android app non-root and runs hardware controls through an authenticated root daemon.

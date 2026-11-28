@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.saan.duchamp.essential"
-    android:versionCode="20000"
-    android:versionName="2.0.0">
+    android:versionCode="30000"
+    android:versionName="3.0.0">
 
     <uses-sdk
         android:minSdkVersion="31"
@@ -18,7 +18,10 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Installed-app chooser for Per-App Controls, including system apps. -->
+    <!-- Audio effect control and per-app audio profiles. -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <!-- Installed-app chooser for Per-App Controls and the Spoofer, including
+         system apps. -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
@@ -70,6 +73,7 @@
             </intent-filter>
             <meta-data android:name="android.service.quicksettings.TOGGLEABLE_TILE" android:value="true" />
         </service>
+        <!-- DolbyX tile removed in 3.0.0. -->
         <service
             android:name=".AudioCompanionService"
             android:permission="android.permission.BIND_COMPANION_DEVICE_SERVICE"

@@ -15,6 +15,7 @@ mod app_controls;
 mod app_runtime;
 mod game_monitor;
 mod bypass_policy;
+mod charge_limit;
 mod service_control;
 mod subsystem_clocks;
 mod system_colors;
@@ -809,6 +810,139 @@ fn configure_bypass(enabled: Option<bool>, threshold: Option<i32>) -> Result<(),
     Ok(())
 }
 
+// Charging Limit Control: the daemon owns /sys/class/power_supply/battery/
+// input_suspend. Unlike bypass charging (kernel power-path node, verified
+// activity), this is the plain charger-input suspend contract: suspend at the
+// selected level, release only when the level drops below it, release at once
+// when the feature is disabled.
+const CHARGE_LIMIT_SUSPEND_PATH: &str = "/sys/class/power_supply/battery/input_suspend";
+
+fn input_suspend_path() -> Option<PathBuf> {
+    Path::new(CHARGE_LIMIT_SUSPEND_PATH)
+        .exists()
+        .then_some(PathBuf::from(CHARGE_LIMIT_SUSPEND_PATH))
+}
+
+fn charge_limit_suspend_state() -> i32 {
+    input_suspend_path()
+        .and_then(|path| read_trimmed(path).ok())
+        .and_then(|value| parse_kernel_bool(&value))
+        .map(i32::from)
+        .unwrap_or(-1)
+}
+
+fn apply_charge_limit_suspend(suspend: bool) -> Result<(), String> {
+    let path = input_suspend_path()
+        .ok_or_else(|| "input_suspend is not supported by this kernel".to_string())?;
+    // Transitions follow the battery level, not page events; rewriting an
+    // unchanged value only restarts vendor bookkeeping for no benefit.
+    if read_trimmed(&path)
+        .ok()
+        .and_then(|value| parse_kernel_bool(&value))
+        == Some(suspend)
+    {
+        return Ok(());
+    }
+    let requested = if suspend { "1" } else { "0" };
+    let readback = write_verified(&path, requested)?;
+    let actual = parse_kernel_bool(&readback)
+        .ok_or_else(|| format!("input_suspend readback is invalid: {readback}"))?;
+    if actual != suspend {
+        return Err(format!(
+            "input_suspend verify failed: requested {}, live {}",
+            i32::from(suspend),
+            i32::from(actual)
+        ));
+    }
+    Ok(())
+}
+
+#[derive(Default)]
+struct ChargeLimitRuntime {
+    selection: Option<(bool, i32)>,
+    last_write: Option<Instant>,
+}
+
+static CHARGE_LIMIT_RUNTIME: OnceLock<Mutex<ChargeLimitRuntime>> = OnceLock::new();
+static CHARGE_LIMIT_TRANSACTION: Mutex<()> = Mutex::new(());
+static CHARGE_LIMIT_ERROR: AtomicI32 = AtomicI32::new(0);
+
+fn reconcile_charge_limit(enabled: bool, limit: i32, explicit: bool) -> Result<(), String> {
+    let mut runtime = CHARGE_LIMIT_RUNTIME
+        .get_or_init(|| Mutex::new(ChargeLimitRuntime::default()))
+        .lock()
+        .map_err(|_| "charge limit lock poisoned".to_string())?;
+    let live = charge_limit_suspend_state();
+    if live < 0 {
+        return Err("input_suspend is not supported by this kernel".into());
+    }
+    if runtime.selection != Some((enabled, limit)) {
+        runtime.selection = Some((enabled, limit));
+    }
+    let desired = charge_limit::suspended(enabled, limit, battery("capacity").parse::<i32>().ok())?;
+    if live != i32::from(desired) {
+        // Events and the maintenance poll drive normal transitions; bound
+        // retries of a vendor conflict without spinning on an unchanged node.
+        if !explicit
+            && runtime
+                .last_write
+                .is_some_and(|time| time.elapsed() < Duration::from_secs(5))
+        {
+            return Ok(());
+        }
+        runtime.last_write = Some(Instant::now());
+        apply_charge_limit_suspend(desired)?;
+    }
+    CHARGE_LIMIT_ERROR.store(0, Ordering::Release);
+    Ok(())
+}
+
+fn maintain_charge_limit() {
+    let _transaction = CHARGE_LIMIT_TRANSACTION
+        .lock()
+        .expect("charge limit transaction poisoned");
+    let state = persisted_state().lock().ok().map(|state| state.clone());
+    if let Some(state) = state.filter(|state| state.charge_limit == 1) {
+        if let Err(error) = reconcile_charge_limit(true, state.charge_limit_threshold, false) {
+            if CHARGE_LIMIT_ERROR.swap(1, Ordering::AcqRel) == 0 {
+                eprintln!("DUCHAMP_CHARGE_LIMIT_FAIL {error}");
+            }
+        }
+    }
+}
+
+fn configure_charge_limit(enabled: Option<bool>, limit: Option<i32>) -> Result<(), String> {
+    let _transaction = CHARGE_LIMIT_TRANSACTION
+        .lock()
+        .map_err(|_| "charge limit transaction poisoned")?;
+    let old = persisted_state()
+        .lock()
+        .map_err(|_| "persisted state poisoned")?
+        .clone();
+    let limit_only = enabled.is_none();
+    let enabled = enabled.unwrap_or(old.charge_limit == 1);
+    let limit = limit.unwrap_or(old.charge_limit_threshold);
+    if !charge_limit::valid_limit(limit) {
+        return Err("invalid charge limit".into());
+    }
+    if limit_only && !enabled {
+        if input_suspend_path().is_none() {
+            return Err("input_suspend is not supported by this kernel".into());
+        }
+        // Selecting a future limit while OFF must not touch the hardware.
+        return mutate_persisted_state(|state| state.charge_limit_threshold = limit);
+    }
+    reconcile_charge_limit(enabled, limit, true)?;
+    if let Err(error) = mutate_persisted_state(|state| {
+        state.charge_limit = i32::from(enabled);
+        state.charge_limit_threshold = limit;
+    }) {
+        let _ = reconcile_charge_limit(old.charge_limit == 1, old.charge_limit_threshold, true);
+        return Err(error);
+    }
+    Ok(())
+}
+
 fn valid_charging_profile(profile: i32) -> bool {
     matches!(profile, 0 | 25 | 33 | 45 | 55 | 67)
 }
@@ -889,11 +1023,17 @@ fn apply_charging_profile(profile: i32) -> Result<(), String> {
 }
 
 #[cfg(target_os = "android")]
-fn maintain_charging_state(profile: i32, bypass_charging: i32) -> Result<(), String> {
+fn maintain_charging_state(profile: i32, bypass_charging: i32, charge_limit: i32) -> Result<(), String> {
     let profile = normalize_charging_profile(profile);
     let online = usb("online").parse::<i32>().unwrap_or(-1);
     let previous_online = CHARGING_LAST_USB_ONLINE.swap(online, Ordering::AcqRel);
 
+    // Charge limit reconciles before the bypass branch so both policies stay
+    // live if a user runs them together; input_suspend and the bypass node
+    // are independent kernel interfaces.
+    if charge_limit == 1 {
+        maintain_charge_limit();
+    }
     if bypass_charging == 1 {
         maintain_bypass_policy();
         if previous_online != online {
@@ -3088,6 +3228,8 @@ struct PersistedState {
     charging: i32,
     bypass_charging: i32,
     bypass_threshold: i32,
+    charge_limit: i32,
+    charge_limit_threshold: i32,
     touch: i32,
     display_color: i32,
     display_temp: i32,
@@ -3135,6 +3277,8 @@ impl Default for PersistedState {
             charging: 0,
             bypass_charging: 0,
             bypass_threshold: 0,
+            charge_limit: 0,
+            charge_limit_threshold: 80,
             touch: -1,
             display_color: -1,
             display_temp: -1,
@@ -3308,6 +3452,16 @@ fn parse_persisted_state(raw: &str) -> PersistedState {
             "bypass_threshold" => {
                 if let Some(v) = int_value().filter(|v| bypass_policy::valid_threshold(*v)) {
                     state.bypass_threshold = v;
+                }
+            }
+            "charge_limit" => {
+                if let Some(v) = int_value() {
+                    state.charge_limit = if v == 1 { 1 } else { 0 };
+                }
+            }
+            "charge_limit_threshold" => {
+                if let Some(v) = int_value().filter(|v| charge_limit::valid_limit(*v)) {
+                    state.charge_limit_threshold = v;
                 }
             }
             "touch" => {
@@ -3568,6 +3722,11 @@ fn save_persisted_state(state: &PersistedState) -> Result<(), String> {
     out.push_str(&format!("charging={}\n", state.charging));
     out.push_str(&format!("bypass_charging={}\n", state.bypass_charging));
     out.push_str(&format!("bypass_threshold={}\n", state.bypass_threshold));
+    out.push_str(&format!("charge_limit={}\n", state.charge_limit));
+    out.push_str(&format!(
+        "charge_limit_threshold={}\n",
+        state.charge_limit_threshold
+    ));
     out.push_str(&format!("touch={}\n", state.touch));
     out.push_str(&format!("display_color={}\n", state.display_color));
     out.push_str(&format!("display_temp={}\n", state.display_temp));
@@ -3961,6 +4120,26 @@ fn record_successful_command(cmd: &str) -> Result<(), String> {
             return Err("invalid bypass threshold".into());
         }
         return mutate_persisted_state(|state| state.bypass_threshold = value);
+    }
+
+    if let Some(arg) = cmd.strip_prefix("SET charging.limit ") {
+        let value = match arg.trim() {
+            "1" => 1,
+            "0" => 0,
+            _ => return Err("charging limit persistence state invalid".into()),
+        };
+        return mutate_persisted_state(|state| state.charge_limit = value);
+    }
+
+    if let Some(arg) = cmd.strip_prefix("SET charging.limit_threshold ") {
+        let value = arg
+            .trim()
+            .parse::<i32>()
+            .map_err(|_| "invalid charge limit")?;
+        if !charge_limit::valid_limit(value) {
+            return Err("invalid charge limit".into());
+        }
+        return mutate_persisted_state(|state| state.charge_limit_threshold = value);
     }
 
     if let Some(rest) = cmd.strip_prefix("SET cpu.gov ") {
@@ -5008,6 +5187,10 @@ fn maintenance_loop() {
         .checked_sub(Duration::from_secs(65))
         .unwrap_or_else(Instant::now);
 
+    let mut last_charge_limit = Instant::now()
+        .checked_sub(Duration::from_secs(5))
+        .unwrap_or_else(Instant::now);
+
     let mut last_display_refresh = Instant::now()
         .checked_sub(Duration::from_secs(12))
         .unwrap_or_else(Instant::now);
@@ -5025,6 +5208,14 @@ fn maintenance_loop() {
         if last_guard.elapsed() >= Duration::from_millis(500) {
             reassert_persisted_governors();
             last_guard = Instant::now();
+        }
+
+        if last_charge_limit.elapsed() >= Duration::from_secs(2) {
+            // Capacity steps do not raise power-supply uevents on every
+            // kernel; this poll is what guarantees the release-below-limit
+            // contract regardless of vendor event behavior.
+            maintain_charge_limit();
+            last_charge_limit = Instant::now();
         }
 
         if last_display_refresh.elapsed() >= Duration::from_secs(10) {
@@ -5117,12 +5308,12 @@ fn charging_power_supply_event_loop() {
             if !service_control::active() {
                 continue;
             }
-            let (profile, bypass_charging) = persisted_state()
+            let (profile, bypass_charging, charge_limit) = persisted_state()
                 .lock()
                 .ok()
-                .map(|state| (state.charging, state.bypass_charging))
-                .unwrap_or((0, 0));
-            if let Err(error) = maintain_charging_state(profile, bypass_charging) {
+                .map(|state| (state.charging, state.bypass_charging, state.charge_limit))
+                .unwrap_or((0, 0, 0));
+            if let Err(error) = maintain_charging_state(profile, bypass_charging, charge_limit) {
                 eprintln!("DUCHAMP_CHARGING_UEVENT_APPLY_FAIL {error}");
             }
         }
@@ -6234,17 +6425,20 @@ fn snapshot_persistence_fields() -> Vec<String> {
 }
 
 fn snapshot() -> String {
-    let (charging, bypass_saved, bypass_threshold) = persisted_state()
-        .lock()
-        .ok()
-        .map(|state| {
-            (
-                normalize_charging_profile(state.charging),
-                state.bypass_charging,
-                state.bypass_threshold,
-            )
-        })
-        .unwrap_or((0, 0, 0));
+    let (charging, bypass_saved, bypass_threshold, charge_limit_saved, charge_limit_threshold) =
+        persisted_state()
+            .lock()
+            .ok()
+            .map(|state| {
+                (
+                    normalize_charging_profile(state.charging),
+                    state.bypass_charging,
+                    state.bypass_threshold,
+                    state.charge_limit,
+                    state.charge_limit_threshold,
+                )
+            })
+            .unwrap_or((0, 0, 0, 0, 80));
     let charging_fcc_ua = charging_fcc_path()
         .as_deref()
         .and_then(read_i64)
@@ -6328,6 +6522,17 @@ fn snapshot() -> String {
         format!(
             "bypass_error={}",
             BYPASS_POLICY_ERROR.load(Ordering::Acquire)
+        ),
+        format!(
+            "charge_limit_supported={}",
+            i32::from(input_suspend_path().is_some())
+        ),
+        format!("charge_limit_state={}", charge_limit_suspend_state()),
+        format!("charge_limit_saved={charge_limit_saved}"),
+        format!("charge_limit_threshold={charge_limit_threshold}"),
+        format!(
+            "charge_limit_error={}",
+            CHARGE_LIMIT_ERROR.load(Ordering::Acquire)
         ),
         format!("cap={}", sanitize(battery("capacity"))),
         format!("temp={}", sanitize(battery("temp"))),
@@ -6513,7 +6718,11 @@ fn restore_released_controls() -> Result<(), String> {
     }
     // Silky uses the backlight node directly, so restore it independently of
     // whether any vendor display-HAL feature was claimed by this daemon.
-    run("Silky brightness restore", set_silky(false));
+    // Skip when Silky was never enabled: there is no captured brightness to
+    // restore, and demanding one would fail every fresh disable.
+    if saved.silky == 1 {
+        run("Silky brightness restore", set_silky(false));
+    }
     if service_control::original("display.hal").is_some() {
         // The vendor HAL provides setters but no reliable cross-ROM getters.
         // Use its neutral/default modes rather than inventing a captured value.
@@ -6904,6 +7113,17 @@ fn handle_enabled_command(line: &str) -> String {
             "1" => configure_bypass(Some(true), None),
             "0" => configure_bypass(Some(false), None),
             _ => Err("invalid bypass charging state".into()),
+        }
+    } else if let Some(arg) = cmd.strip_prefix("SET charging.limit_threshold ") {
+        arg.trim()
+            .parse::<i32>()
+            .map_err(|_| "invalid charge limit".to_string())
+            .and_then(|limit| configure_charge_limit(None, Some(limit)))
+    } else if let Some(arg) = cmd.strip_prefix("SET charging.limit ") {
+        match arg.trim() {
+            "1" => configure_charge_limit(Some(true), None),
+            "0" => configure_charge_limit(Some(false), None),
+            _ => Err("invalid charging limit state".into()),
         }
     } else if let Some(arg) = cmd.strip_prefix("SET touch ") {
         arg.trim()
@@ -7307,7 +7527,7 @@ mod tests {
     }
 
     #[test]
-    fn parses_duchamp_gpu_table_without_Duchamp_index_assumptions() {
+    fn parses_duchamp_gpu_table_without_duchamp_index_assumptions() {
         let raw = "1400000000 1383000000 1367000000 1351000000 1335000000 1319000000 1303000000 1287000000 1271000000 1255000000 1238000000 1222000000 1206000000 1190000000 1174000000 1158000000 1142000000 1126000000 1110000000 1093000000 1077000000 1061000000 1045000000 1029000000 1013000000 997000000 981000000 965000000 948000000 932000000 916000000 900000000 884000000 868000000 852000000 836000000 820000000 800000000 780000000 760000000 740000000 720000000 701000000 681000000 661000000 641000000 621000000 601000000 582000000 562000000 542000000 522000000 502000000 483000000 463000000 443000000 423000000 403000000 383000000 364000000 344000000 324000000 304000000 284000000 265000000";
         let table = super::parse_gpu_opp_frequency_table(raw).unwrap();
         assert_eq!(table.len(), 65);
@@ -7409,7 +7629,7 @@ com.saan.duchamp.essential 10228 0 /data/user/0/com.saan.duchamp.essential defau
     }
 
     #[test]
-    fn migrates_legacy_Duchamp_charging_tiers_to_duchamp_67() {
+    fn migrates_legacy_duchamp_charging_tiers_to_duchamp_67() {
         for old in [8, 65, 85, 90] {
             assert_eq!(normalize_charging_profile(old), 67);
         }

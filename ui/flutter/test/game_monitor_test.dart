@@ -32,9 +32,19 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 40));
       });
       await tester.pumpAndSettle();
+      // The lower switch rows sit below the fold on a 390x900 viewport.
+      await tester.ensureVisible(find.text('Detailed view'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Detailed view'));
       await tester.pumpAndSettle();
       expect(jsonDecode(file.readAsStringSync())['details'], true);
+      // Scrolling to the switches destroyed the lazily built preview subtree;
+      // return to the top so the chip rebuilds and its gestures land.
+      tester
+          .state<ScrollableState>(find.byType(Scrollable).first)
+          .position
+          .jumpTo(0);
+      await tester.pumpAndSettle();
       await tester.drag(find.textContaining('CPU 32%'), const Offset(60, 30));
       await tester.pumpAndSettle();
       final positions = jsonDecode(file.readAsStringSync())['positions'];
@@ -60,7 +70,16 @@ void main() {
       expect(jsonDecode(file.readAsStringSync())['scale'], .75);
       await tester.tap(find.text('Portrait'));
       await tester.pumpAndSettle();
+      // Scrolling to the switches destroyed the lazily built preview subtree;
+      // return to the top so the chip rebuilds and its gestures land.
+      tester
+          .state<ScrollableState>(find.byType(Scrollable).first)
+          .position
+          .jumpTo(0);
+      await tester.pumpAndSettle();
       await tester.drag(find.textContaining('CPU 32%'), const Offset(8, 35));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Selected apps'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Selected apps'));
       await tester.pumpAndSettle();
