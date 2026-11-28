@@ -1,5 +1,9 @@
 # Duchamp Essential
 
+<p align="center">
+  <img src="duchamp-essential-v3-poster.png" alt="Duchamp Essential V3 Poster" width="100%">
+</p>
+
 Duchamp Essential is a native hardware-control application for Xiaomi Duchamp
 (POCO X6 Pro / Redmi K70E) and its MediaTek Dimensity 8300-Ultra platform.
 
