@@ -1,7 +1,7 @@
 # Duchamp Essential
 
 <p align="center">
-  <img src="duchamp-essential-v3-poster.png" alt="Duchamp Essential V3 Poster" width="100%">
+  <img src="file_0000000035108211a89e09c77a6231fb.png" alt="Duchamp Essential V3 Poster" width="100%">
 </p>
 
 Duchamp Essential is a native hardware-control application for Xiaomi Duchamp
